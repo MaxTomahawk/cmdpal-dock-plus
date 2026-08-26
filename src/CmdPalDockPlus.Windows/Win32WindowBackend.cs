@@ -23,6 +23,9 @@ public sealed class Win32WindowBackend : IWindowBackend
     private const uint ProcessQueryLimitedInformation = 0x1000;
     private const uint MonitorDefaultToNearest = 2;
     private const uint WmClose = 0x0010;
+    private const int ErrorSuccess = 0;
+    private const int ErrorInsufficientBuffer = 122;
+    private const uint MaxAumidChars = 4096;
 
     private readonly WinEventDelegate _winEventCallback;
     private readonly List<nint> _hooks = [];
@@ -53,8 +56,10 @@ public sealed class Win32WindowBackend : IWindowBackend
                 {
                     var title = ReadWindowText(hwnd);
                     var className = ReadClassName(hwnd);
-                    var executablePath = ReadExecutablePath(processId);
-                    var executableName = string.IsNullOrWhiteSpace(executablePath) ? string.Empty : Path.GetFileName(executablePath);
+                    var identity = ReadProcessIdentity(processId);
+                    var executableName = string.IsNullOrWhiteSpace(identity.ExecutablePath)
+                        ? string.Empty
+                        : Path.GetFileName(identity.ExecutablePath);
                     var state = IsIconic(hwnd) ? WindowState.Minimized : IsZoomed(hwnd) ? WindowState.Maximized : WindowState.Restored;
                     result.Add(new WindowSnapshot(
                         hwnd,
@@ -66,7 +71,8 @@ public sealed class Win32WindowBackend : IWindowBackend
                         hwnd == foreground,
                         ReadMonitorName(hwnd),
                         rank++,
-                        executablePath));
+                        identity.ExecutablePath,
+                        identity.AppUserModelId));
                 }
             }
 
@@ -180,19 +186,37 @@ public sealed class Win32WindowBackend : IWindowBackend
         return builder.ToString();
     }
 
-    private static string ReadExecutablePath(uint processId)
+    private static (string ExecutablePath, string? AppUserModelId) ReadProcessIdentity(uint processId)
     {
         var process = OpenProcess(ProcessQueryLimitedInformation, false, processId);
         if (process == 0)
         {
-            return string.Empty;
+            return (string.Empty, null);
         }
 
         try
         {
             var capacity = 32768;
-            var builder = new StringBuilder(capacity);
-            return QueryFullProcessImageName(process, 0, builder, ref capacity) ? builder.ToString() : string.Empty;
+            var pathBuilder = new StringBuilder(capacity);
+            var executablePath = QueryFullProcessImageName(process, 0, pathBuilder, ref capacity)
+                ? pathBuilder.ToString()
+                : string.Empty;
+
+            uint aumidLength = 0;
+            var status = GetApplicationUserModelId(process, ref aumidLength, null);
+            string? appUserModelId = null;
+            if (status == ErrorInsufficientBuffer && aumidLength is > 1 and <= MaxAumidChars)
+            {
+                var aumidBuilder = new StringBuilder(checked((int)aumidLength));
+                status = GetApplicationUserModelId(process, ref aumidLength, aumidBuilder);
+                if (status == ErrorSuccess)
+                {
+                    var value = aumidBuilder.ToString().Trim();
+                    appUserModelId = string.IsNullOrWhiteSpace(value) ? null : value;
+                }
+            }
+
+            return (executablePath, appUserModelId);
         }
         finally
         {
@@ -244,5 +268,6 @@ public sealed class Win32WindowBackend : IWindowBackend
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool UnhookWinEvent(nint hook);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern nint OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool QueryFullProcessImageName(nint process, uint flags, StringBuilder exeName, ref int size);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern int GetApplicationUserModelId(nint process, ref uint applicationUserModelIdLength, StringBuilder? applicationUserModelId);
     [DllImport("kernel32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(nint handle);
 }
