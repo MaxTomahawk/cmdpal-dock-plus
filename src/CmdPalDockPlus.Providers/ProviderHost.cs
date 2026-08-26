@@ -211,6 +211,7 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
     {
         yield return new("app.name", "Application name", "Configured profile display name.", "profile");
         yield return new("process.executable", "Executable", "Full executable path/name.", "snapshot");
+        yield return new("process.aumid", "AUMID", "Application User Model ID when Windows exposes one for the process.", "snapshot");
         yield return new("process.pid", "Process ID", "Owning process id.", "event-driven");
         yield return new("process.cpu", "CPU", "CPU usage percentage; sampled only when selected.", "sampled/2s");
         yield return new("process.memory", "Memory", "Working-set bytes; sampled only when selected.", "sampled/2s");
