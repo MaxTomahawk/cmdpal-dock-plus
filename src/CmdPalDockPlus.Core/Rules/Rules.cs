@@ -177,18 +177,37 @@ public static class RuleValidator
             }
         }
 
-        foreach (var group in rule.Actions.OfType<GroupAction>())
+        foreach (var action in rule.Actions)
         {
-            try
+            switch (action)
             {
-                _ = TemplateCompiler.Compile(group.Key);
-            }
-            catch (TemplateParseException)
-            {
-                errors.Add($"rule.template.invalid:{rule.Id}:group");
+                case GroupAction group:
+                    ValidateTemplate(group.Key, "group");
+                    break;
+                case SetTitleTemplateAction title:
+                    ValidateTemplate(title.Template, "title");
+                    break;
+                case SetSubtitleTemplateAction subtitle:
+                    ValidateTemplate(subtitle.Template, "subtitle");
+                    break;
+                case SetIconTemplateAction icon:
+                    ValidateTemplate(icon.Template, "icon");
+                    break;
             }
         }
 
         return errors;
+
+        void ValidateTemplate(string template, string kind)
+        {
+            try
+            {
+                _ = TemplateCompiler.Compile(template);
+            }
+            catch (TemplateParseException)
+            {
+                errors.Add($"rule.template.invalid:{rule.Id}:{kind}");
+            }
+        }
     }
 }
