@@ -41,4 +41,13 @@ public sealed class RuleEvaluatorTests
             new Dictionary<string, object?> { ["window.title"] = "text" })
             .Should().BeFalse();
     }
+
+    [Fact]
+    public void ValidatorRejectsMalformedGroupKeyTemplate()
+    {
+        var rule = new DockRule("workspace", [], [new GroupAction("{workspace")]);
+
+        RuleValidator.Validate(rule)
+            .Should().ContainSingle("rule.template.invalid:workspace:group");
+    }
 }
