@@ -21,6 +21,10 @@ jobs:
           "MSIX_VERSION=$($version.MsixVersion)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           & ./scripts/Set-PackageVersion.ps1 -Version $version.MsixVersion
 
+      - name: Test installer bootstrap help
+        shell: cmd
+        run: scripts\Install-Unsigned.cmd --help
+
       - name: Test Core
         shell: pwsh
         run: dotnet test tests/CmdPalDockPlus.Core.Tests/CmdPalDockPlus.Core.Tests.csproj -c Release
@@ -71,6 +75,7 @@ jobs:
         shell: pwsh
         run: |
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/release'
+          Copy-Item scripts/Install-Unsigned.cmd (Join-Path $releaseDir 'Install-Unsigned.cmd')
           Copy-Item scripts/Install-Unsigned.ps1 (Join-Path $releaseDir 'Install-Unsigned.ps1')
           Compress-Archive -Path powertoys/README.md,powertoys/patches/* -DestinationPath (Join-Path $releaseDir "CmdPalDockPlus-PowerToysPatch-$env:RELEASE_VERSION.zip") -Force
 
@@ -80,6 +85,7 @@ jobs:
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/release'
           $files = @(Get-ChildItem $releaseDir -File | Sort-Object Name)
           if (-not ($files.Name -match '\.msixbundle$')) { throw 'MSIX bundle missing from release staging' }
+          if (-not ($files.Name -contains 'Install-Unsigned.cmd')) { throw 'CMD installer missing from release staging' }
           $lines = foreach ($file in $files) {
             $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($file.Name)"
@@ -102,7 +108,9 @@ jobs:
 
           Requires PowerToys 0.101.0 or newer on Windows 11.
 
-          This GitHub v0.1 release channel uses an unsigned MSIX identity. Download the `.msixbundle` and `Install-Unsigned.ps1` into the same folder, then run the installer script. Windows will request administrator elevation. The script uses the Microsoft-supported `Add-AppxPackage -AllowUnsigned` development installation path.
+          This GitHub release channel uses an unsigned MSIX identity. Download the `.msixbundle` and `Install-Unsigned.cmd` into the same folder, then run the CMD installer. Windows will request administrator elevation. The bootstrapper uses an inline PowerShell command and therefore does not require unsigned `.ps1` execution to be permitted by PowerShell execution policy. The package itself is installed through the Microsoft-supported `Add-AppxPackage -AllowUnsigned` development path.
+
+          `Install-Unsigned.ps1` remains attached as a compatibility fallback for machines whose PowerShell policy permits local unsigned scripts.
 
           Live DWM hover previews require the optional PowerToys compatibility patch in the attached patch ZIP. All core app/window tiles work without that patch.
 

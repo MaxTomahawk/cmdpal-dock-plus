@@ -1,23 +1,28 @@
 # CmdPal Dock Plus
 
-CmdPal Dock Plus turns the PowerToys Command Palette Dock into a smarter app/window surface instead of trying to clone every private Explorer taskbar behavior.
+CmdPal Dock Plus extends the PowerToys Command Palette Dock into a configurable app/window surface instead of trying to reproduce every private Explorer taskbar implementation detail.
 
 It provides:
 
-- Smart application tiles that launch, focus, group, split, hide, and manage real top-level windows.
-- Live title/subtitle templates with app-specific data for VS Code, browsers, terminals, Explorer, media sessions, and optional process metrics.
-- A Smart App Menu with windows, Recent/Frequent destinations, app actions, media actions, and user-defined actions.
-- A separate System status band for volume, network, and battery/power.
-- A safe Windows 11 notification-area band based on UI Automation, without injecting code into Explorer.
-- Optional live DWM hover previews through a small, version-pinned PowerToys compatibility patch.
+- Smart app/window tiles that launch, focus, group, split, hide, and manage top-level windows.
+- Dynamic icon/title/subtitle templates driven by live app/window/process/provider data.
+- Grouped, Separate, and Smart per-window modes.
+- App-specific adapters for VS Code, browsers, Windows Terminal, Explorer, and Windows media sessions.
+- Smart rules and custom actions configured per shortcut/profile.
+- A Smart App Menu with windows, Recent/Frequent destinations, media actions, app actions, and user actions.
+- A System band for volume, network, and battery/power.
+- A safe Windows 11 notification-area band using UI Automation without injecting code into Explorer.
+- Optional live DWM hover previews through a small version-pinned PowerToys compatibility patch.
 
 ## Status
 
-`v0.1.0` targets Windows 11 and PowerToys **0.101.0 or newer**.
+The `v0.1.x` line targets Windows 11 and PowerToys **0.101.0 or newer**.
 
-The core extension does **not** require a custom PowerToys build. The optional PowerToys patch is only required for live hover thumbnails because the public Command Palette extension SDK does not expose Dock pointer/hover events to extensions.
+`v0.1.1` changes the default unsigned-package installer to `Install-Unsigned.cmd` so installation still works on machines where Group Policy requires PowerShell script files to be signed. The actual package-install command is unchanged: `Add-AppxPackage -AllowUnsigned`.
 
-This release intentionally does **not** ship generic process injection for native `ITaskbarList3` progress/overlay interception.
+The core extension does **not** require a custom PowerToys build. The optional PowerToys patch is required only for automatic hover thumbnails because the public Command Palette extension SDK does not expose Dock pointer/hover events to extensions.
+
+This release line intentionally does **not** ship generic third-party process injection for native `ITaskbarList3` progress/overlay interception.
 
 ## Requirements
 
@@ -25,39 +30,113 @@ This release intentionally does **not** ship generic process injection for nativ
 - PowerToys 0.101.0 or newer with Command Palette/Dock available.
 - x64 or ARM64 Windows.
 
-For the optional hover-preview patch you also need a local PowerToys build environment matching the pinned upstream source revision in `powertoys/patches/upstream-commit.txt`.
+For the optional hover-preview patch, you also need a PowerToys build environment matching the pinned source revision in `powertoys/patches/upstream-commit.txt`.
 
 ## Install a GitHub release
 
 A release contains:
 
-- `CmdPalDockPlus-<version>.msixbundle` — x64 + ARM64 extension bundle.
-- `Install-Unsigned.ps1` — installer for the unsigned GitHub development package.
+- `CmdPalDockPlus-<version>.msixbundle` — combined x64 + ARM64 extension bundle.
+- `Install-Unsigned.cmd` — **recommended installer** for the unsigned GitHub package.
+- `Install-Unsigned.ps1` — compatibility fallback for machines that allow local unsigned PowerShell scripts.
 - Individual x64 and ARM64 `.msix` files.
 - `CmdPalDockPlus-PowerToysPatch-<version>.zip` — optional hover-preview compatibility patch.
 - `SHA256SUMS.txt`.
 
-The GitHub v0.1 channel uses Windows' unsigned MSIX development-install path. Put the `.msixbundle` and `Install-Unsigned.ps1` in the same directory, then run:
+### Recommended installation
 
-```powershell
-PowerShell -ExecutionPolicy Bypass -File .\Install-Unsigned.ps1
+Download these two files into the same folder:
+
+```text
+CmdPalDockPlus-<version>.msixbundle
+Install-Unsigned.cmd
 ```
 
-The script requests elevation and installs the bundle with `Add-AppxPackage -AllowUnsigned`.
+Then double-click `Install-Unsigned.cmd`, or run it from a terminal:
 
-For a long-lived/public distribution channel, use a properly signed MSIX instead of the unsigned development package.
+```cmd
+Install-Unsigned.cmd
+```
+
+The installer:
+
+1. finds exactly one `CmdPalDockPlus-*.msixbundle` next to itself;
+2. requests administrator elevation if necessary;
+3. executes an inline Windows PowerShell command;
+4. installs the bundle with:
+
+```powershell
+Add-AppxPackage -Path '<bundle>' -AllowUnsigned
+```
+
+The CMD bootstrapper deliberately does **not** execute an unsigned `.ps1` file, so a Group Policy that enforces signed PowerShell script files does not block this installation path.
+
+You can also provide an explicit package path:
+
+```cmd
+Install-Unsigned.cmd "C:\path\to\CmdPalDockPlus-0.1.1.msixbundle"
+```
+
+### Direct installation without either installer file
+
+Open an **Administrator** Windows PowerShell window in the folder containing the bundle and run:
+
+```powershell
+Add-AppxPackage -Path .\CmdPalDockPlus-0.1.1.msixbundle -AllowUnsigned
+```
+
+Or from PowerShell 7, request an elevated Windows PowerShell process without executing a script file:
+
+```powershell
+$pkg = (Resolve-Path .\CmdPalDockPlus-0.1.1.msixbundle).Path
+Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList "-NoProfile -Command `"Add-AppxPackage -Path '$pkg' -AllowUnsigned`""
+```
+
+### Why `Install-Unsigned.ps1` may be blocked
+
+PowerShell execution-policy precedence is:
+
+```text
+MachinePolicy
+UserPolicy
+Process
+LocalMachine / CurrentUser
+```
+
+A command such as:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\Install-Unsigned.ps1
+```
+
+sets the Process policy only. If Group Policy sets `MachinePolicy` or `UserPolicy` to require signed scripts, that higher-precedence policy still wins. `Install-Unsigned.cmd` avoids this issue by using an inline PowerShell command instead of loading an unsigned script file.
+
+To inspect your machine:
+
+```powershell
+Get-ExecutionPolicy -List
+```
+
+### Unsigned development channel
+
+The GitHub v0.1 release line uses Windows' unsigned MSIX development-install path. For a long-lived public distribution channel, a properly signed MSIX should replace this development route.
 
 ## First setup
 
 After installation:
 
-1. Make sure **CmdPal Dock Plus** is enabled as a Command Palette extension.
-2. Open the Command Palette command **Configure CmdPal Dock Plus**.
-3. Choose **Add from running application** for the easiest setup, or **Add manually**.
-4. Give the profile a stable ID and display name.
-5. Match by executable path, AUMID, or both.
-6. Choose a grouping mode and title/subtitle templates.
-7. Save the tile.
+1. Start or restart PowerToys.
+2. Open **Command Palette**.
+3. Verify **CmdPal Dock Plus** is enabled as an extension.
+4. Run **Configure CmdPal Dock Plus**.
+5. Choose **Add from running application** for the easiest setup, or **Add manually**.
+6. Give the shortcut/profile a stable ID and display name.
+7. Match the app by executable path, AUMID, or both.
+8. Choose **Grouped**, **Separate**, or **Smart** window behavior.
+9. Configure Title, Subtitle, and optional Icon templates.
+10. Configure Smart rules and custom actions if wanted.
+11. Save the profile.
+12. Use normal Command Palette Dock customization to place the provided bands where you want them.
 
 CmdPal Dock Plus exposes three Dock bands:
 
@@ -65,7 +144,7 @@ CmdPal Dock Plus exposes three Dock bands:
 - **System status**
 - **Notification area**
 
-Use the normal Command Palette Dock customization/settings UI to arrange the bands. Dock placement, compact size, always-on-top, and auto-hide remain native PowerToys Dock settings.
+Dock placement, compact/default size, always-on-top, and auto-hide remain native PowerToys Dock settings.
 
 Profiles are stored at:
 
@@ -73,52 +152,71 @@ Profiles are stored at:
 %LOCALAPPDATA%\CmdPalDockPlus\profiles.json
 ```
 
-Deleting that file resets the app-profile configuration. Close/restart the extension after a manual file edit.
+Deleting this file resets configured app profiles. Restart the extension after manually editing or deleting it.
 
-## Smart application tile behavior
+## Shortcut / app-profile behavior
 
-Primary click follows a taskbar-like but deliberately simplified rule:
+Every configured shortcut is an **App Profile**. A profile determines:
 
-- No matching window: launch the configured app.
-- One or more matching windows: focus the tile's current primary/MRU window.
+- how the application is identified;
+- which windows belong to it;
+- whether windows are grouped or split;
+- which live fields are requested;
+- how Title, Subtitle, and Icon are rendered;
+- which rules override grouping/presentation;
+- which actions appear in the app/window menu.
 
-The context menu exposes, when applicable:
+Primary click behavior:
 
-- Smart App Menu
-- Focus a specific window
-- Minimize / maximize / close a specific window
-- New instance
-- Open executable location
-- Close all windows
-- Live provider actions, such as media Play/Pause/Previous/Next
-- User-defined actions
+- no matching window → launch the configured app;
+- one or more matching windows → focus the current primary/MRU window.
 
-### Window matching
+The context menu can expose:
 
-A profile can match either:
+- Smart App Menu;
+- Focus a specific window;
+- Minimize / maximize / close a specific window;
+- New instance;
+- Open executable location;
+- Close all windows;
+- live provider actions such as media Play/Pause/Previous/Next;
+- user-defined actions.
 
-- executable name/path, or
-- Windows Application User Model ID (AUMID).
+## Window matching
 
-The Windows backend reads both the process image path and, when Windows exposes it, the process AUMID. Matching is case-insensitive.
+A profile can match by:
 
-AUMID is also useful for the public Windows Recent/Frequent destination APIs used by the Smart App Menu.
+- executable name/path;
+- Windows Application User Model ID (AUMID);
+- or both.
+
+The Windows backend reads the process image path and, when Windows exposes it, the process AUMID. Matching is case-insensitive. If an AUMID is configured, it takes precedence for packaged-host scenarios where several apps can share a host executable.
+
+AUMID is also used by the public Windows Recent/Frequent destination APIs in the Smart App Menu.
 
 ## Grouping modes
 
 ### Grouped
 
-All matching windows become one tile. The primary/MRU window is focused by default; all windows remain available in the menu.
+All matching windows become one tile. The primary/MRU window is focused by default; every represented window remains available in the menu.
 
 ### Separate
 
-Each window becomes its own tile.
+Each eligible top-level window becomes its own Dock tile and can show its own title, subtitle, icon, provider state, and actions.
 
 ### Smart
 
-Rules inspect live fields and can group, separate, hide, or override presentation.
+Rules can dynamically group, separate, hide, or restyle windows based on provider fields.
 
-## Title and subtitle templates
+Typical examples:
+
+- one VS Code tile per workspace;
+- separate browser InPrivate windows;
+- group browser windows by profile;
+- separate Explorer project folders but group Downloads/Desktop;
+- hide tool/dialog windows.
+
+## Dynamic Title / Subtitle / Icon templates
 
 Fields are referenced with braces:
 
@@ -129,14 +227,14 @@ Fields are referenced with braces:
 {process.cpu}
 ```
 
-Fallbacks use `??`:
+Fallback chains use `??`:
 
 ```text
 {vscode.workspace ?? window.title}
 {media.title ?? window.title ?? app.name}
 ```
 
-The editor shows the fields available for the selected/running application.
+The setup page probes the selected/running application and shows fields that providers can expose.
 
 Generic fields include:
 
@@ -145,7 +243,7 @@ Generic fields include:
 | `app.name` | profile | Configured display name |
 | `process.executable` | snapshot | Executable path/name |
 | `process.aumid` | snapshot | Process AUMID when available |
-| `process.pid` | event-driven | Process id |
+| `process.pid` | event-driven | Process ID |
 | `process.cpu` | sampled/2s | CPU percentage; sampling starts only when referenced |
 | `process.memory` | sampled/2s | Working set; sampling starts only when referenced |
 | `process.uptime` | sampled/2s | Process uptime; sampling starts only when referenced |
@@ -157,13 +255,17 @@ Generic fields include:
 | `window.class` | snapshot/event | Win32 window class |
 | `window.count` | event-driven | Number of windows represented by a tile |
 
-Application-specific adapters add fields such as:
+Application adapters add fields such as:
 
 - VS Code: `vscode.workspace`, `vscode.file`, `vscode.remote`
 - Browsers: `browser.pageTitle`, `browser.isPrivate`, `browser.product`
 - Windows Terminal: `terminal.title`, `terminal.shell`
 - Explorer: `explorer.locationName`
-- Media sessions: `media.title`, `media.artist`, `media.album`, `media.playbackState`, `media.sourceApp`
+- Media: `media.title`, `media.artist`, `media.album`, `media.playbackState`, `media.sourceApp`
+
+### Icon selection
+
+If no icon override is configured, the tile uses the matched executable path as its icon source. Command Palette extracts the application icon from the executable. A Smart rule may override the icon with a rendered icon template.
 
 ## Smart rules JSON
 
@@ -217,7 +319,7 @@ false
 Supported actions:
 
 ```text
-group      -> requires key
+group      -> requires key; key may be a template
 separate
 hide
 title      -> requires template
@@ -225,13 +327,13 @@ subtitle   -> requires template
 icon       -> requires template
 ```
 
-Rules are evaluated in order. Inside a matching rule, `group`, `separate`, and `hide` are terminal grouping decisions, so put title/subtitle/icon overrides **before** the terminal grouping action when both are required.
+Rules are evaluated in order. Inside a matching rule, `group`, `separate`, and `hide` are terminal grouping decisions, so put presentation overrides before the terminal grouping action when both are needed.
 
-Regex rules use a short timeout and invalid regex input is rejected when the profile is saved.
+Rule templates and regex expressions are validated when the profile is saved. Regex execution has a timeout.
 
 ## User actions JSON
 
-Custom actions are also configured as a JSON array.
+Custom actions are configured as an ordered JSON array.
 
 Process example:
 
@@ -265,49 +367,47 @@ URI example:
 
 Supported kinds:
 
-- `process` — starts the target directly without shell execution.
-- `uri` — opens an absolute URI through Windows shell handling.
+- `process` — starts the target directly without shell execution;
+- `uri` — opens an absolute URI through Windows shell handling;
 - `shell` — explicit advanced shell-execute action.
 
-`shell` is intentionally opt-in. Treat profile files as executable configuration: do not import actions from untrusted sources.
+`shell` is intentionally opt-in. Treat imported profile files as executable configuration; do not import actions from untrusted sources.
 
 ## Smart App Menu and Jump List replacement
 
-CmdPal Dock Plus does not attempt to clone every private native Jump List category. Instead, the Smart App Menu combines public/reliable sources:
+CmdPal Dock Plus does not attempt to clone every private native Jump List category. The Smart App Menu combines supported/reliable sources:
 
-- Current windows
-- Windows Recent destinations when an AUMID is available
-- Windows Frequent destinations when an AUMID is available
-- New instance
-- Open file location
-- Close all windows
-- Live provider actions
-- Custom actions
+- current windows;
+- Windows Recent destinations when an AUMID is available;
+- Windows Frequent destinations when an AUMID is available;
+- New instance;
+- Open file location;
+- Close all windows;
+- live provider actions;
+- custom actions.
 
-This gives a larger, app-aware menu while avoiding dependence on private pinned/custom Jump List internals.
+Native pinned/custom Jump List categories are not imported.
 
 ## Media integration
 
-If Windows exposes exactly one matching Global System Media Transport Controls session for the tile's app, the tile can expose:
+When Windows exposes exactly one matching Global System Media Transport Controls session for the tile's app, the tile can expose:
 
-- Play / Pause
-- Previous
-- Next
+- Play / Pause;
+- Previous;
+- Next.
 
-Media metadata is event-driven; it does not require a polling loop.
+Media metadata is event-driven rather than polled.
 
 ## System status band
-
-The System band contains supported Windows status controls:
 
 ### Volume
 
 - Live volume percentage and mute state.
 - Primary click toggles mute.
-- Context actions: volume -5%, volume +5%, Sound settings.
-- Uses Core Audio endpoint-change notifications rather than polling.
+- Context actions: -5%, +5%, Sound settings.
+- Uses Core Audio endpoint notifications rather than polling.
 
-If Core Audio initialization fails, the volume item is omitted without taking down the extension.
+If Core Audio initialization fails, only the volume item is omitted.
 
 ### Network
 
@@ -323,29 +423,29 @@ If Core Audio initialization fails, the volume item is omitted without taking do
 
 ## Notification area / system tray
 
-The safe v0.1 implementation uses Windows UI Automation on Windows 11. It deliberately does **not** inject a DLL into `explorer.exe`.
+The safe v0.1 implementation uses Windows UI Automation on Windows 11 and deliberately does **not** inject a DLL into `explorer.exe`.
 
 Behavior:
 
-- Visible third-party notification icons are enumerated from the Windows taskbar accessibility tree.
-- Default activation uses UIA `InvokePattern` when the icon supports it.
-- **Hidden icons…** invokes Windows' own overflow chevron.
-- While the Windows overflow panel is open, its third-party icons can be reflected into the Dock band.
-- Shell-owned combined indicators such as volume/network/battery are excluded because CmdPal Dock Plus provides those as supported System-band controls instead.
+- visible third-party notification icons are enumerated from the Windows taskbar accessibility tree;
+- default activation uses UIA `InvokePattern` when available;
+- **Hidden icons…** invokes Windows' own overflow control;
+- while Windows' overflow panel is open, its third-party icons can be reflected into the Dock band;
+- shell-owned combined volume/network/battery indicators are excluded because CmdPal Dock Plus provides them through the System band.
 
 Performance model:
 
-- UIA structure/property events trigger refreshes.
-- Events are debounced instead of causing a full rebuild per individual accessibility event.
-- A slow recovery/watchdog scan is retained for Explorer/UIA recovery.
-- There is no permanent multi-second polling loop for normal updates.
+- UIA structure/property events trigger refreshes;
+- events are debounced;
+- a slow watchdog scan exists only for Explorer/UIA recovery;
+- there is no permanent multi-second polling loop for normal updates.
 
-Current safe-build limitations:
+Safe-build limitations:
 
-- UIA does not expose the original notification icon bitmap reliably, so v0.1 uses a generic tray glyph rather than scraping Explorer internals.
-- No synthetic cursor movement is used.
-- Right/middle-click emulation is therefore not provided in the safe build.
-- Hidden/overflow icons are discoverable while Windows' overflow flyout is open; Windows does not publicly expose the complete hidden-icon collection through the same non-disruptive UIA path while it is closed.
+- UIA does not reliably expose original notification icon pixels, so v0.1 uses a generic tray glyph instead of scraping Explorer internals;
+- no synthetic cursor movement;
+- no right/middle-click emulation;
+- hidden/overflow icons are discoverable while Windows' overflow flyout is open.
 
 ## Live hover previews
 
@@ -355,90 +455,53 @@ The repository includes an optional PowerToys patch:
 powertoys/patches/cmdpal-dock-hover.patch
 ```
 
-The matching upstream PowerToys commit is pinned in:
+The matching PowerToys revision is pinned in:
 
 ```text
 powertoys/patches/upstream-commit.txt
 ```
 
-The patch only bridges internal Dock hover enter/exit events to CmdPal Dock Plus. The extension owns the preview window and uses DWM thumbnails (`DwmRegisterThumbnail` / `DwmUpdateThumbnailProperties`) for live window content.
+The patch only bridges Dock hover enter/exit events and stable command IDs to CmdPal Dock Plus. The extension owns the preview window and uses DWM thumbnails (`DwmRegisterThumbnail` / `DwmUpdateThumbnailProperties`) for live content.
 
-The CI and release workflows validate the patch with `git apply --check` against the pinned PowerToys commit.
+CI and release workflows validate the patch with `git apply --check` against the pinned upstream revision.
 
-See [`powertoys/README.md`](powertoys/README.md) for build/apply instructions.
+See [`powertoys/README.md`](powertoys/README.md) for apply/build instructions.
 
-Without the patch, all normal app/window tiles, context menus, status controls, tray UIA behavior, templates, rules, and actions still work; only automatic hover previews are absent.
+Without the patch, all normal app/window tiles, context menus, status controls, tray UIA behavior, templates, rules, and actions continue working; only automatic hover previews are absent.
 
 ## Native taskbar progress, overlay badges, and attention flashing
 
-The core state/protocol model exists for future capture adapters, but v0.1 does not ship generic taskbar API interception.
+The state/protocol model exists for future capture adapters, but the v0.1 release line does **not** ship generic taskbar API interception.
 
-Why:
+Reason:
 
-- `ITaskbarList3` exposes setters such as progress and overlay operations, not a supported global observer API.
-- Exact interception requires code inside the calling process or an unsupported Shell-side reverse-engineered path.
-- Shipping generic per-process injection creates architecture, security-product, anti-cheat, sandbox, and crash-surface costs that are disproportionate for the base Dock extension.
+- `ITaskbarList3` exposes setters, not a supported global observer API;
+- exact generic interception requires code in the target process or an unsupported Shell-side technique;
+- generic injection adds architecture, security-product, anti-cheat, sandbox, and crash-surface costs that are not acceptable for the default release.
 
-So the v0.1 release position is:
+Current release position:
 
-- Native app progress interception: **not shipped**.
-- Native `SetOverlayIcon` interception: **not shipped**.
-- Exact Explorer attention-flash mirroring: **not shipped**.
-- App/provider-defined titles, state, actions and future custom badges: supported by the normal extension architecture.
-
-## Architecture
-
-```text
-CmdPalDockPlus.Extension
-    |
-    +-- DockCoordinator
-    |     +-- WindowTracker / WindowActivator / AppLauncher
-    |     +-- TileComposer
-    |     +-- ProviderHost
-    |
-    +-- Smart applications band
-    +-- System status band
-    +-- Notification area band (UIA)
-    +-- Configuration pages
-    +-- HoverPreviewCoordinator (optional PowerToys hover bridge)
-
-CmdPalDockPlus.Core
-    +-- profiles
-    +-- templates
-    +-- rules
-    +-- tile composition
-    +-- taskbar-state protocol/reducer
-
-CmdPalDockPlus.Windows
-    +-- Win32 window enumeration/events
-    +-- executable + AUMID identity
-    +-- focus/minimize/maximize/close
-    +-- Recent/Frequent destinations
-    +-- DWM thumbnails
-    +-- media session service
-    +-- Core Audio / network / power status
-
-CmdPalDockPlus.Providers
-    +-- VS Code
-    +-- browser
-    +-- terminal
-    +-- Explorer
-    +-- media
-    +-- opt-in process metrics
-```
-
-The normal runtime is event-driven. The only recurring sampling loop is process metrics, and it starts only when a profile actually references CPU/memory/uptime fields. CPU metrics use a 2-second sample cadence.
+- native app progress interception: **not shipped**;
+- native `SetOverlayIcon` interception: **not shipped**;
+- exact Explorer attention-flash mirroring: **not shipped**;
+- app/provider-defined titles, state, actions, and future custom badges: supported by the normal extension architecture.
 
 ## Build from source
 
-Use Windows with the .NET 10 SDK and Visual Studio/Build Tools support required by the Windows/MSIX project.
+Use Windows with the .NET 10 SDK and Windows/MSIX build tooling.
 
-Run the managed test suites:
+Run tests:
 
 ```powershell
 dotnet test tests/CmdPalDockPlus.Core.Tests/CmdPalDockPlus.Core.Tests.csproj -c Release
 dotnet test tests/CmdPalDockPlus.Windows.Tests/CmdPalDockPlus.Windows.Tests.csproj -c Release
 dotnet test tests/CmdPalDockPlus.Providers.Tests/CmdPalDockPlus.Providers.Tests.csproj -c Release
+```
+
+Validate the installer bootstrap without installing anything:
+
+```cmd
+scripts\Install-Unsigned.cmd --help
 ```
 
 Build x64:
@@ -450,8 +513,6 @@ dotnet build src/CmdPalDockPlus.Extension/CmdPalDockPlus.Extension.csproj -c Rel
 
 Build ARM64 by replacing `x64` with `ARM64`.
 
-The CI workflow additionally builds unsigned MSIX smoke packages for both architectures and validates the pinned PowerToys patch.
-
 ## Release process
 
 Tags matching `vX.Y.Z` trigger `.github/workflows/release.yml`.
@@ -460,28 +521,26 @@ The workflow:
 
 1. validates/parses the tag;
 2. sets the MSIX version to `X.Y.Z.0`;
-3. runs all managed tests;
-4. validates the optional PowerToys patch against the pinned upstream revision;
-5. builds unsigned x64 and ARM64 MSIX packages;
-6. creates the `.msixbundle`;
-7. packages the PowerToys patch docs;
-8. generates and verifies SHA-256 checksums;
-9. creates the GitHub Release.
+3. validates `Install-Unsigned.cmd --help`;
+4. runs all managed tests;
+5. validates the optional PowerToys patch against the pinned upstream revision;
+6. builds unsigned x64 and ARM64 MSIX packages;
+7. creates the `.msixbundle`;
+8. includes both installer bootstraps and the PowerToys patch package;
+9. generates and verifies SHA-256 checksums;
+10. creates the GitHub Release.
 
-No signing secret is required for the unsigned development release channel.
+No signing secret is required for this unsigned development channel.
 
 ## Security / reliability choices
 
-CmdPal Dock Plus deliberately keeps invasive mechanisms out of the default release:
-
 - No DLL injection into Explorer for tray capture.
-- No generic injection into third-party applications for taskbar progress/overlay capture.
-- No synthetic cursor movement for notification-area context menus.
+- No generic injection into third-party apps for taskbar progress/overlay capture.
+- No synthetic cursor movement for tray context menus.
 - Regex execution has a timeout.
-- Custom actions are explicit profile configuration and are validated before execution.
+- Custom actions are explicit profile configuration and validated before execution.
 - System status components fail independently where possible.
-
-The optional PowerToys hover patch modifies PowerToys source, but it does not inject into arbitrary application processes.
+- The optional PowerToys hover patch modifies PowerToys source but does not inject into arbitrary applications.
 
 ## License
 

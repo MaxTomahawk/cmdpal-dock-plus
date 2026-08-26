@@ -17,6 +17,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Test installer bootstrap help
+        shell: cmd
+        run: scripts\Install-Unsigned.cmd --help
       - name: Test Core
         shell: pwsh
         run: dotnet test tests/CmdPalDockPlus.Core.Tests/CmdPalDockPlus.Core.Tests.csproj -c Release
