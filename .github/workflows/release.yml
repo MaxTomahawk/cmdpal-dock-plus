@@ -58,6 +58,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Package build failed for $platform" }
             $packages = @(Get-ChildItem $out -Recurse -File | Where-Object Extension -eq '.msix')
             if ($packages.Count -ne 1) { throw "Expected one MSIX for $platform; found $($packages.Count)" }
+            & ./scripts/Test-UnsignedPackageNamespace.ps1 -PackagePath $packages[0].FullName
+            if ($LASTEXITCODE -ne 0) { throw "Unsigned namespace validation failed for $platform" }
             $arch = $platform.ToLowerInvariant()
             $name = "CmdPalDockPlus-$env:RELEASE_VERSION-$arch.msix"
             Copy-Item $packages[0].FullName (Join-Path $packageInput $name)
@@ -108,7 +110,7 @@ jobs:
 
           Requires PowerToys 0.101.0 or newer on Windows 11.
 
-          This GitHub release channel uses an unsigned MSIX identity. Download the `.msixbundle` and `Install-Unsigned.cmd` into the same folder, then run the CMD installer. Windows will request administrator elevation. The bootstrapper uses an inline PowerShell command and therefore does not require unsigned `.ps1` execution to be permitted by PowerShell execution policy. The package itself is installed through the Microsoft-supported `Add-AppxPackage -AllowUnsigned` development path.
+          This GitHub release channel uses an unsigned MSIX identity in the Windows-defined unsigned publisher namespace. Download the `.msixbundle` and `Install-Unsigned.cmd` into the same folder, then run the CMD installer. Windows will request administrator elevation. The bootstrapper uses an inline PowerShell command and therefore does not require unsigned `.ps1` execution to be permitted by PowerShell execution policy. The package itself is installed through the Microsoft-supported `Add-AppxPackage -AllowUnsigned` development path.
 
           `Install-Unsigned.ps1` remains attached as a compatibility fallback for machines whose PowerShell policy permits local unsigned scripts.
 

@@ -55,7 +55,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'MSIX build failed' }
           $packages = @(Get-ChildItem $out -Recurse -File | Where-Object Extension -in '.msix','.appx')
           if ($packages.Count -lt 1) { throw "No MSIX/AppX package produced in $out" }
-          $packages | ForEach-Object { Write-Host $_.FullName }
+          foreach ($package in $packages) {
+            Write-Host $package.FullName
+            & ./scripts/Test-UnsignedPackageNamespace.ps1 -PackagePath $package.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Unsigned namespace validation failed for $($package.FullName)" }
+          }
 
   hover-patch-check:
     runs-on: windows-2025
