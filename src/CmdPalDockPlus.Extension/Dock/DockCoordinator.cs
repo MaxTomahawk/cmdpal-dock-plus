@@ -112,6 +112,22 @@ internal sealed partial class DockCoordinator : IAsyncDisposable
         return _states.TryGetValue(new TileIdentity(commandId[prefix.Length..]), out state!);
     }
 
+    public IReadOnlyList<ProviderActionDescriptor> ProviderActions(TileIdentity identity)
+    {
+        var window = PrimaryWindow(identity);
+        return window is null ? [] : _providers.Actions(window);
+    }
+
+    public async Task RunProviderActionAsync(TileIdentity identity, string actionId)
+    {
+        var action = ProviderActions(identity).FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, actionId, StringComparison.Ordinal));
+        if (action is not null)
+        {
+            await action.InvokeAsync().ConfigureAwait(false);
+        }
+    }
+
     public async Task ActivateTileAsync(TileIdentity identity)
     {
         if (!_states.TryGetValue(identity, out var state)) return;
@@ -169,6 +185,16 @@ internal sealed partial class DockCoordinator : IAsyncDisposable
         _providers.DataInvalidated -= OnDataInvalidated;
         await _tracker.DisposeAsync().ConfigureAwait(false);
         _gate.Dispose();
+    }
+
+    private WindowSnapshot? PrimaryWindow(TileIdentity identity)
+    {
+        if (!_states.TryGetValue(identity, out var state) || state.PrimaryHwnd is not { } hwnd)
+        {
+            return null;
+        }
+
+        return _tracker.Snapshot.FirstOrDefault(candidate => candidate.Hwnd == hwnd);
     }
 
     private async Task RefreshAsync()
