@@ -50,4 +50,24 @@ public sealed class RuleEvaluatorTests
         RuleValidator.Validate(rule)
             .Should().ContainSingle("rule.template.invalid:workspace:group");
     }
+
+    [Fact]
+    public void ValidatorRejectsMalformedPresentationTemplates()
+    {
+        var rule = new DockRule(
+            "presentation",
+            [],
+            [
+                new SetTitleTemplateAction("{window.title"),
+                new SetSubtitleTemplateAction("{vscode.workspace"),
+                new SetIconTemplateAction("{app.icon"),
+            ]);
+
+        RuleValidator.Validate(rule).Should().BeEquivalentTo(
+        [
+            "rule.template.invalid:presentation:title",
+            "rule.template.invalid:presentation:subtitle",
+            "rule.template.invalid:presentation:icon",
+        ]);
+    }
 }
