@@ -1,0 +1,201 @@
+diff --git a/src/modules/cmdpal/Microsoft.CmdPal.UI/Dock/DockHoverBridge.cs b/src/modules/cmdpal/Microsoft.CmdPal.UI/Dock/DockHoverBridge.cs
+new file mode 100644
+--- /dev/null
++++ b/src/modules/cmdpal/Microsoft.CmdPal.UI/Dock/DockHoverBridge.cs
+@@ -0,0 +1,146 @@
++// Copyright (c) Microsoft Corporation
++// The Microsoft Corporation licenses this file to you under the MIT license.
++
++using System.Collections.Concurrent;
++using System.IO.Pipes;
++using System.Runtime.InteropServices;
++using System.Text;
++using System.Text.Json;
++using Microsoft.CmdPal.UI.ViewModels.Dock;
++using Microsoft.UI.Xaml;
++using Windows.Foundation;
++
++namespace Microsoft.CmdPal.UI.Dock;
++
++/// <summary>
++/// Optional, best-effort compatibility bridge for CmdPal Dock Plus hover previews.
++/// All pipe work happens off the UI thread. If no listener is present, normal Dock
++/// behavior is unchanged.
++/// </summary>
++internal static class DockHoverBridge
++{
++    private const string PipeName = "CmdPalDockPlus.hover.v1";
++    private static readonly ConcurrentQueue<byte[]> Pending = new();
++    private static NamedPipeClientStream? _pipe;
++    private static int _draining;
++
++    internal static void PublishEnter(FrameworkElement element, DockControl? dock, DockItemViewModel? item)
++    {
++        var commandId = item?.Command.Id;
++        if (string.IsNullOrWhiteSpace(commandId) || !TryGetScreenBounds(element, dock, out var rect))
++        {
++            return;
++        }
++
++        Enqueue(JsonSerializer.Serialize(new
++        {
++            version = 1,
++            kind = "enter",
++            commandId,
++            x = rect.X,
++            y = rect.Y,
++            width = rect.Width,
++            height = rect.Height,
++        }));
++    }
++
++    internal static void PublishLeave(DockItemViewModel? item)
++    {
++        var commandId = item?.Command.Id;
++        if (string.IsNullOrWhiteSpace(commandId))
++        {
++            return;
++        }
++
++        Enqueue(JsonSerializer.Serialize(new
++        {
++            version = 1,
++            kind = "leave",
++            commandId,
++        }));
++    }
++
++    private static bool TryGetScreenBounds(FrameworkElement element, DockControl? dock, out HoverBounds bounds)
++    {
++        bounds = default;
++        if (dock is null || dock.OwnerHwnd == IntPtr.Zero || element.ActualWidth <= 0 || element.ActualHeight <= 0)
++        {
++            return false;
++        }
++
++        try
++        {
++            var dipBounds = element.TransformToVisual(dock).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
++            var scale = element.XamlRoot?.RasterizationScale ?? 1.0;
++            var topLeft = new NativePoint
++            {
++                X = checked((int)Math.Round(dipBounds.X * scale)),
++                Y = checked((int)Math.Round(dipBounds.Y * scale)),
++            };
++
++            if (!ClientToScreen(dock.OwnerHwnd, ref topLeft))
++            {
++                return false;
++            }
++
++            var width = Math.Max(1, checked((int)Math.Round(dipBounds.Width * scale)));
++            var height = Math.Max(1, checked((int)Math.Round(dipBounds.Height * scale)));
++            bounds = new HoverBounds(topLeft.X, topLeft.Y, width, height);
++            return true;
++        }
++        catch (Exception ex) when (ex is InvalidOperationException or OverflowException)
++        {
++            return false;
++        }
++    }
++
++    private static void Enqueue(string json)
++    {
++        Pending.Enqueue(Encoding.UTF8.GetBytes(json + "\n"));
++        if (Interlocked.CompareExchange(ref _draining, 1, 0) == 0)
++        {
++            _ = Task.Run(DrainAsync);
++        }
++    }
++
++    private static async Task DrainAsync()
++    {
++        try
++        {
++            while (Pending.TryDequeue(out var message))
++            {
++                try
++                {
++                    await EnsureConnectedAsync().ConfigureAwait(false);
++                    if (_pipe is null)
++                    {
++                        continue;
++                    }
++
++                    await _pipe.WriteAsync(message).ConfigureAwait(false);
++                    await _pipe.FlushAsync().ConfigureAwait(false);
++                }
++                catch (Exception ex) when (ex is IOException or TimeoutException or OperationCanceledException)
++                {
++                    ResetPipe();
++                }
++            }
++        }
++        finally
++        {
++            Interlocked.Exchange(ref _draining, 0);
++            if (!Pending.IsEmpty && Interlocked.CompareExchange(ref _draining, 1, 0) == 0)
++            {
++                _ = Task.Run(DrainAsync);
++            }
++        }
++    }
++
++    private static async Task EnsureConnectedAsync()
++    {
++        if (_pipe?.IsConnected == true)
++        {
++            return;
++        }
++
++        ResetPipe();
++        var candidate = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.Asynchronous);
++        try
++        {
++            using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
++            await candidate.ConnectAsync(timeout.Token).ConfigureAwait(false);
++            _pipe = candidate;
++        }
++        catch
++        {
++            candidate.Dispose();
++            throw;
++        }
++    }
++
++    private static void ResetPipe()
++    {
++        _pipe?.Dispose();
++        _pipe = null;
++    }
++
++    private readonly record struct HoverBounds(int X, int Y, int Width, int Height);
++
++    [StructLayout(LayoutKind.Sequential)]
++    private struct NativePoint
++    {
++        public int X;
++        public int Y;
++    }
++
++    [DllImport("user32.dll", SetLastError = true)]
++    [return: MarshalAs(UnmanagedType.Bool)]
++    private static extern bool ClientToScreen(IntPtr hwnd, ref NativePoint point);
++}
++diff --git a/src/modules/cmdpal/Microsoft.CmdPal.UI/Dock/DockItemControl.xaml.cs b/src/modules/cmdpal/Microsoft.CmdPal.UI/Dock/DockItemControl.xaml.cs
++--- a/src/modules/cmdpal/Microsoft.CmdPal.UI/Dock/DockItemControl.xaml.cs
+++++ b/src/modules/cmdpal/Microsoft.CmdPal.UI/Dock/DockItemControl.xaml.cs
++@@ -423,11 +423,13 @@ public sealed partial class DockItemControl : Control
++     private void Control_PointerEntered(object sender, PointerRoutedEventArgs e)
++     {
++         VisualStateManager.GoToState(this, "PointerOver", true);
+++        DockHoverBridge.PublishEnter(this, _parentDock, Tag as DockItemViewModel);
++     }
++ 
++     private void Control_PointerExited(object sender, PointerRoutedEventArgs e)
++     {
++         VisualStateManager.GoToState(this, "Normal", true);
+++        DockHoverBridge.PublishLeave(Tag as DockItemViewModel);
++     }
++ 
++     protected override void OnPointerPressed(PointerRoutedEventArgs e)
