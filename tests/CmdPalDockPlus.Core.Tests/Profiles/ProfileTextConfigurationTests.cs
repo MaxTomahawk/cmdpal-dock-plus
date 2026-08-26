@@ -1,6 +1,7 @@
 using CmdPalDockPlus.Core.Actions;
 using CmdPalDockPlus.Core.Profiles;
 using CmdPalDockPlus.Core.Rules;
+using FluentAssertions;
 
 namespace CmdPalDockPlus.Core.Tests.Profiles;
 
