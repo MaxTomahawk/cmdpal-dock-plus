@@ -60,6 +60,33 @@ public sealed class TileComposerTests
         tiles[0].Windows.Should().HaveCount(2);
         tiles[1].Windows.Should().ContainSingle();
     }
+
+    [Fact]
+    public void SmartGroupedTileUsesPresentationOverridesFromPrimaryWindowRule()
+    {
+        var profile = Fixtures.Profile(GroupingMode.Smart) with
+        {
+            Rules =
+            [
+                new DockRule(
+                    "workspace",
+                    [new RuleCondition("vscode.workspace", RuleOperator.Exists)],
+                    [
+                        new SetSubtitleTemplateAction("Workspace · {vscode.workspace}"),
+                        new GroupAction("team"),
+                    ]),
+            ],
+        };
+        var windows = new[]
+        {
+            Fixtures.Window((nint)1, "Alpha file", "Alpha", isActive: true, mruRank: 0),
+            Fixtures.Window((nint)2, "Beta file", "Beta", isActive: false, mruRank: 1),
+        };
+
+        var tile = new TileComposer().Compose(profile, windows).Should().ContainSingle().Subject;
+
+        tile.Subtitle.Should().Be("Workspace · Alpha");
+    }
 }
 
 internal static class Fixtures
