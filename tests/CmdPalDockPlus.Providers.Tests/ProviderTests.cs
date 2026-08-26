@@ -34,6 +34,15 @@ public sealed class ProviderTests
     }
 
     [Fact]
+    public void ProbeAdvertisesProcessAumid()
+    {
+        using var host = new ProviderHost();
+
+        host.Probe(Window("ApplicationFrameHost.exe", "Packaged app", "ApplicationFrameWindow"))
+            .Should().Contain(capability => capability.Id == "process.aumid");
+    }
+
+    [Fact]
     public void VsCodeAdapterExtractsWorkspaceAndFile()
     {
         var adapter = new VSCodeAdapter();
