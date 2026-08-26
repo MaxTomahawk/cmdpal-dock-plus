@@ -5,7 +5,7 @@ using Windows.System;
 
 namespace CmdPalDockPlus.Extension.SystemStatus;
 
-internal sealed class SystemStatusBandController : IDisposable
+internal sealed partial class SystemStatusBandController : IDisposable
 {
     private readonly VolumeService? _volume;
     private readonly NetworkStatusService _network;
@@ -154,7 +154,7 @@ internal sealed class SystemStatusBandController : IDisposable
         private void Refresh()
         {
             var snapshot = _service.Snapshot;
-            Title = snapshot.BatteryStatus == Windows.System.Power.BatteryStatus.NotPresent
+            Title = snapshot.BatteryStatus == global::Windows.System.Power.BatteryStatus.NotPresent
                 ? "AC"
                 : $"{snapshot.ClampedPercent}%";
             Subtitle = snapshot.IsCharging ? "Charging" : snapshot.PowerSupplyStatus.ToString();
