@@ -5,7 +5,7 @@
   xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap uap3 rescap">
-  <Identity Name="MaxTomahawk.CmdPalDockPlus" Publisher="CN=CmdPal Dock Plus, OID.2.25.35153822659760640731285659936457169856=1" Version="0.1.0.0" />
+  <Identity Name="MaxTomahawk.CmdPalDockPlus" Publisher="CN=CmdPal Dock Plus, OID.2.25.311729368913984317654407730594956997722=1" Version="0.1.0.0" />
   <Properties>
     <DisplayName>CmdPal Dock Plus</DisplayName>
     <PublisherDisplayName>MaxTomahawk</PublisherDisplayName>
