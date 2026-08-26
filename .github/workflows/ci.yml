@@ -59,6 +59,8 @@ jobs:
             Write-Host $package.FullName
             & ./scripts/Test-UnsignedPackageNamespace.ps1 -PackagePath $package.FullName
             if ($LASTEXITCODE -ne 0) { throw "Unsigned namespace validation failed for $($package.FullName)" }
+            & ./scripts/Test-CmdPalExtensionPackage.ps1 -PackagePath $package.FullName
+            if ($LASTEXITCODE -ne 0) { throw "CmdPal package contract validation failed for $($package.FullName)" }
           }
 
   hover-patch-check:
