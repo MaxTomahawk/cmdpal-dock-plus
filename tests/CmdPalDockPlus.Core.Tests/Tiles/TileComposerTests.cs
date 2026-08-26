@@ -87,6 +87,21 @@ public sealed class TileComposerTests
 
         tile.Subtitle.Should().Be("Workspace · Alpha");
     }
+
+    [Fact]
+    public void IconTemplateIsRenderedAgainstPrimaryWindowValues()
+    {
+        var profile = Fixtures.Profile(GroupingMode.Separate) with
+        {
+            Display = new DisplayTemplate("{window.title}", "", "https://icons.example/{vscode.workspace}.png"),
+        };
+
+        var tile = new TileComposer().Compose(
+            profile,
+            [Fixtures.Window((nint)1, "Alpha file", "Alpha", isActive: true)]).Should().ContainSingle().Subject;
+
+        tile.IconSource.Should().Be("https://icons.example/Alpha.png");
+    }
 }
 
 internal static class Fixtures
