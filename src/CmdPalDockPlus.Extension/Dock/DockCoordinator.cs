@@ -206,7 +206,7 @@ internal sealed partial class DockCoordinator : IAsyncDisposable
             foreach (var profile in _document.Profiles.Where(profile => profile.Enabled))
             {
                 var windows = new List<TileWindow>();
-                foreach (var snapshot in _tracker.Snapshot.Where(window => Matches(profile, window)))
+                foreach (var snapshot in _tracker.Snapshot.Where(window => ApplicationWindowMatcher.Matches(profile.Application, window)))
                 {
                     var generic = GenericValues(snapshot);
                     var values = _providers.Enrich(profile, snapshot, generic);
@@ -244,13 +244,6 @@ internal sealed partial class DockCoordinator : IAsyncDisposable
     private void OnWindowsChanged(object? sender, WindowSetChanged e) => _ = RefreshAsync();
     private void OnDataInvalidated(object? sender, EventArgs e) => _ = RefreshAsync();
 
-    private static bool Matches(AppProfile profile, WindowSnapshot window)
-    {
-        if (!string.IsNullOrWhiteSpace(profile.Application.ExecutablePath))
-            return string.Equals(Path.GetFileName(profile.Application.ExecutablePath), window.ExecutableName, StringComparison.OrdinalIgnoreCase);
-        return false;
-    }
-
     private static IReadOnlyDictionary<string, object?> GenericValues(WindowSnapshot window)
         => new Dictionary<string, object?>(StringComparer.Ordinal)
         {
@@ -262,5 +255,6 @@ internal sealed partial class DockCoordinator : IAsyncDisposable
             ["window.class"] = window.ClassName,
             ["process.pid"] = window.ProcessId,
             ["process.executable"] = window.ExecutablePath ?? window.ExecutableName,
+            ["process.aumid"] = window.AppUserModelId,
         };
 }
