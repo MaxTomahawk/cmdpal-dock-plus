@@ -1,4 +1,5 @@
 using CmdPalDockPlus.Core.Profiles;
+using CmdPalDockPlus.Core.Rules;
 using CmdPalDockPlus.Providers;
 using CmdPalDockPlus.Windows;
 using FluentAssertions;
@@ -12,6 +13,24 @@ public sealed class ProviderTests
     {
         var profile = Profile("{vscode.workspace ?? window.title}", "{window.count}");
         ProfileFieldDependencies.Resolve(profile).Should().BeEquivalentTo(["vscode.workspace", "window.title", "window.count"]);
+    }
+
+    [Fact]
+    public void DependenciesIncludeFieldsReferencedOnlyBySmartGroupKey()
+    {
+        var profile = Profile("{window.title}", "") with
+        {
+            Grouping = GroupingMode.Smart,
+            Rules =
+            [
+                new DockRule(
+                    "workspace",
+                    [new RuleCondition("window.title", RuleOperator.Exists)],
+                    [new GroupAction("{vscode.workspace}")]),
+            ],
+        };
+
+        ProfileFieldDependencies.Resolve(profile).Should().Contain("vscode.workspace");
     }
 
     [Fact]
