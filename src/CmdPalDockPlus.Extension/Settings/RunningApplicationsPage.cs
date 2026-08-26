@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CmdPalDockPlus.Core.Profiles;
+using CmdPalDockPlus.Windows;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
