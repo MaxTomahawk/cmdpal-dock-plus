@@ -66,6 +66,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Unsigned namespace validation failed for $platform" }
             & ./scripts/Test-CmdPalExtensionPackage.ps1 -PackagePath $packages[0].FullName
             if ($LASTEXITCODE -ne 0) { throw "CmdPal package contract validation failed for $platform" }
+            if ($platform -eq 'x64') {
+              & ./scripts/Test-CmdPalExtensionStartup.ps1 -PackagePath $packages[0].FullName
+              if ($LASTEXITCODE -ne 0) { throw 'CmdPal x64 extension startup smoke test failed' }
+            }
             $arch = $platform.ToLowerInvariant()
             $name = "CmdPalDockPlus-$env:RELEASE_VERSION-$arch.msix"
             Copy-Item $packages[0].FullName (Join-Path $packageInput $name)
@@ -116,13 +120,15 @@ jobs:
 
           Requires PowerToys 0.101.0 or newer on Windows 11.
 
-          The extension packages are built with the architecture-specific self-contained publish profiles from the official PowerToys Command Palette extension template. Release CI opens every built MSIX and validates the `com.microsoft.commandpalette` AppExtension registration, matching COM CLSID/executable mapping, self-contained .NET host/runtime payload, and Windows unsigned publisher namespace before bundling or publishing.
+          The extension packages are built with the architecture-specific self-contained publish profiles from the official PowerToys Command Palette extension template. Release CI opens every built MSIX and validates the `com.microsoft.commandpalette` AppExtension registration, matching COM CLSID/executable mapping, self-contained .NET host/runtime payload, and Windows unsigned publisher namespace before bundling or publishing. The x64 package must also start its COM server successfully before release publication.
 
           Download the `.msixbundle` and `Install-Unsigned.cmd` into the same folder, then run the CMD installer. Windows will request administrator elevation. The package is installed through `Add-AppxPackage -AllowUnsigned`.
 
           `Install-Unsigned.ps1` remains attached as a compatibility fallback for machines whose PowerShell policy permits local unsigned scripts.
 
           Live DWM hover previews require the optional PowerToys compatibility patch in the attached patch ZIP. All core app/window tiles work without that patch.
+
+          The safe notification-area implementation uses Windows UI Automation and does not inject code into Explorer. Generic third-party taskbar progress/overlay interception is not shipped in this release.
           "@
           $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.md'
           $notes | Set-Content $notesPath -Encoding utf8
