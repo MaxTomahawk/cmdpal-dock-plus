@@ -77,17 +77,38 @@ public sealed class TileComposer
             }
         }
 
-        result.AddRange(buckets.OrderBy(kvp => kvp.Key, StringComparer.Ordinal).Select(kvp => ComposeGroup(profile, kvp.Value, kvp.Key)));
+        result.AddRange(buckets
+            .OrderBy(kvp => kvp.Key, StringComparer.Ordinal)
+            .Select(kvp => ComposeSmartGroup(profile, kvp.Value, kvp.Key)));
         return result;
     }
 
     private static DockTileState ComposeGroup(AppProfile profile, IReadOnlyList<TileWindow> windows, string groupKey)
         => ComposeForWindows(profile, windows, new TileIdentity($"{profile.Id}:group:{NormalizeKey(groupKey)}"), null);
 
+    private static DockTileState ComposeSmartGroup(AppProfile profile, IReadOnlyList<TileWindow> windows, string groupKey)
+    {
+        var selected = SelectPrimary(windows);
+        RuleEvaluationResult? rule = null;
+        if (selected is not null)
+        {
+            var evaluation = RuleEvaluator.Evaluate(profile.Rules, BuildValues(profile, [selected], selected));
+            if (evaluation.Grouping == RuleGrouping.Group)
+            {
+                rule = evaluation;
+            }
+        }
+
+        return ComposeForWindows(
+            profile,
+            windows,
+            new TileIdentity($"{profile.Id}:group:{NormalizeKey(groupKey)}"),
+            rule);
+    }
+
     private static DockTileState ComposeForWindows(AppProfile profile, IReadOnlyList<TileWindow> windows, TileIdentity identity, RuleEvaluationResult? rule)
     {
-        var selected = windows.FirstOrDefault(window => window.IsActive)
-            ?? windows.OrderBy(window => window.MruRank).ThenBy(window => (long)window.Hwnd).FirstOrDefault();
+        var selected = SelectPrimary(windows);
         var values = BuildValues(profile, windows, selected);
         var titleTemplate = TemplateCompiler.Compile(rule?.TitleTemplate ?? profile.Display.Title);
         var subtitleTemplate = TemplateCompiler.Compile(rule?.SubtitleTemplate ?? profile.Display.Subtitle);
@@ -100,6 +121,10 @@ public sealed class TileComposer
 
         return new(identity, title, subtitle, windows.ToArray(), selected?.Hwnd, rule?.IconTemplate ?? profile.Display.Icon);
     }
+
+    private static TileWindow? SelectPrimary(IReadOnlyList<TileWindow> windows)
+        => windows.FirstOrDefault(window => window.IsActive)
+            ?? windows.OrderBy(window => window.MruRank).ThenBy(window => (long)window.Hwnd).FirstOrDefault();
 
     private static Dictionary<string, object?> BuildValues(AppProfile profile, IReadOnlyList<TileWindow> windows, TileWindow? selected)
     {
