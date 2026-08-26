@@ -3,7 +3,7 @@ using Microsoft.CommandPalette.Extensions.Toolkit;
 
 namespace CmdPalDockPlus.Extension.Tray;
 
-internal sealed class TrayBandController : IDisposable
+internal sealed partial class TrayBandController : IDisposable
 {
     private readonly UiaTrayService _service = new();
     private bool _disposed;
