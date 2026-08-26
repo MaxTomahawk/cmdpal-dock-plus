@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using CmdPalDockPlus.Core.Templates;
 
 namespace CmdPalDockPlus.Core.Rules;
 
@@ -173,6 +174,18 @@ public static class RuleValidator
             catch (ArgumentException)
             {
                 errors.Add($"rule.regex.invalid:{rule.Id}:{condition.FieldId}");
+            }
+        }
+
+        foreach (var group in rule.Actions.OfType<GroupAction>())
+        {
+            try
+            {
+                _ = TemplateCompiler.Compile(group.Key);
+            }
+            catch (TemplateParseException)
+            {
+                errors.Add($"rule.template.invalid:{rule.Id}:group");
             }
         }
 
