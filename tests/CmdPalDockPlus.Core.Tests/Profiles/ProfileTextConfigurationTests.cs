@@ -25,7 +25,7 @@ public sealed class ProfileTextConfigurationTests
         parsed[0].Id.Should().Be("project");
         parsed[0].Conditions.Should().ContainSingle().Which.Should().BeEquivalentTo(rules[0].Conditions[0]);
         parsed[0].Actions.Should().HaveCount(2);
-        parsed[0].Actions[0].Should().BeEquivalentTo(rules[0].Actions[0]);
+        parsed[0].Actions[0].Should().Be(rules[0].Actions[0]);
         parsed[0].Actions[1].Should().BeOfType<SeparateAction>();
     }
 
