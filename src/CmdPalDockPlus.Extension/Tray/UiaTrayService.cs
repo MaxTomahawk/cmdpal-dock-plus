@@ -8,7 +8,7 @@ internal sealed record TrayEntry(
     bool IsVisible,
     AutomationElement Element);
 
-internal sealed class UiaTrayService : IDisposable
+internal sealed partial class UiaTrayService : IDisposable
 {
     private const string ShellTrayClass = "Shell_TrayWnd";
     private const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
@@ -120,7 +120,6 @@ internal sealed class UiaTrayService : IDisposable
                 }
                 else
                 {
-                    // Keep fresh AutomationElement handles even when metadata is unchanged.
                     _entries = next;
                 }
             }
@@ -132,8 +131,6 @@ internal sealed class UiaTrayService : IDisposable
         }
         catch
         {
-            // UIA can throw while Explorer is rebuilding the XAML island. The
-            // watchdog/relevant UIA event will retry without a tight loop.
         }
     }
 
