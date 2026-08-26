@@ -1,4 +1,5 @@
 using CmdPalDockPlus.Core.Profiles;
+using CmdPalDockPlus.Core.Rules;
 using CmdPalDockPlus.Core.Tiles;
 using FluentAssertions;
 
@@ -32,6 +33,33 @@ public sealed class TileComposerTests
         tiles.Should().ContainSingle();
         tiles[0].Title.Should().Be(profile.DisplayName);
     }
+
+    [Fact]
+    public void SmartGroupKeyCanUseLiveTemplateFields()
+    {
+        var profile = Fixtures.Profile(GroupingMode.Smart) with
+        {
+            Rules =
+            [
+                new DockRule(
+                    "workspace",
+                    [new RuleCondition("workspace", RuleOperator.Exists)],
+                    [new GroupAction("{workspace}")]),
+            ],
+        };
+        var windows = new[]
+        {
+            Fixtures.Window((nint)1, "One", "Alpha"),
+            Fixtures.Window((nint)2, "Two", "Beta"),
+            Fixtures.Window((nint)3, "Three", "Alpha"),
+        };
+
+        var tiles = new TileComposer().Compose(profile, windows);
+
+        tiles.Select(tile => tile.Identity.Value).Should().Equal("app:group:alpha", "app:group:beta");
+        tiles[0].Windows.Should().HaveCount(2);
+        tiles[1].Windows.Should().ContainSingle();
+    }
 }
 
 internal static class Fixtures
@@ -44,11 +72,17 @@ internal static class Fixtures
         new DisplayTemplate("{window.title ?? app.name}", "{window.count}"));
 
     public static IReadOnlyList<TileWindow> Windows(params string[] titles) => titles
-        .Select((title, index) => new TileWindow((nint)(index + 1), index + 10, title, index == 0, index, new Dictionary<string, object?>
+        .Select((title, index) => Window((nint)(index + 1), title, null, index == 0, index))
+        .ToArray();
+
+    public static TileWindow Window(nint hwnd, string title, string? workspace, bool isActive = false, long mruRank = 0)
+    {
+        var values = new Dictionary<string, object?>
         {
             ["window.title"] = title,
-            ["window.count"] = titles.Length,
             ["app.name"] = "App",
-        }))
-        .ToArray();
+        };
+        if (workspace is not null) values["workspace"] = workspace;
+        return new TileWindow(hwnd, checked((int)hwnd + 9), title, isActive, mruRank, values);
+    }
 }
