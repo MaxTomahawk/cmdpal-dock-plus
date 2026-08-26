@@ -36,7 +36,7 @@ public sealed class MediaProviderTests
 
     private sealed class FakeMediaSessionService(IReadOnlyList<MediaSessionSnapshot> sessions) : IMediaSessionService
     {
-        public event EventHandler? Changed;
+        public event EventHandler? Changed { add { } remove { } }
         public IReadOnlyList<MediaSessionSnapshot> Snapshot => sessions;
         public ValueTask<bool> PlayPauseAsync(string sourceAppId, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
         public ValueTask<bool> NextAsync(string sourceAppId, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
