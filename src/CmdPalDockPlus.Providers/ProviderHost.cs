@@ -5,6 +5,8 @@ using CmdPalDockPlus.Windows.Media;
 
 namespace CmdPalDockPlus.Providers;
 
+public sealed record ProviderActionDescriptor(string Id, string DisplayName, Func<ValueTask<bool>> InvokeAsync);
+
 public sealed class ProviderHost : IDisposable, IAsyncDisposable
 {
     private static readonly IReadOnlySet<string> ProcessMetricFields = new HashSet<string>(["process.cpu", "process.memory", "process.uptime"], StringComparer.Ordinal);
@@ -59,6 +61,17 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
             .ToArray();
     }
 
+    public IReadOnlyList<ProviderActionDescriptor> Actions(WindowSnapshot window)
+    {
+        var result = new List<ProviderActionDescriptor>();
+        foreach (var media in _adapters.OfType<MediaProvider>().Where(adapter => adapter.Supports(window)))
+        {
+            result.AddRange(media.Actions(window).Select(action =>
+                new ProviderActionDescriptor(action.Id, action.DisplayName, action.InvokeAsync)));
+        }
+        return result;
+    }
+
     public IReadOnlyDictionary<string, object?> Enrich(
         AppProfile profile,
         WindowSnapshot window,
@@ -68,9 +81,6 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
         Dictionary<string, object?> values = new(genericValues, StringComparer.Ordinal);
 
         if (requested.Contains("app.name")) values["app.name"] = profile.DisplayName;
-        if (requested.Contains("attention.level")) values["attention.level"] = "None";
-        if (requested.Contains("attention.reason")) values["attention.reason"] = null;
-        if (requested.Contains("attention.isActive")) values["attention.isActive"] = false;
 
         foreach (var adapter in _adapters.Where(adapter => adapter.Supports(window)))
         {
@@ -212,8 +222,5 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
         yield return new("window.monitor", "Monitor", "Monitor device name.", "event-driven");
         yield return new("window.class", "Window class", "Win32 class name.", "snapshot/event");
         yield return new("window.count", "Window count", "Number of windows rendered by this tile.", "event-driven");
-        yield return new("attention.level", "Attention level", "Normalized None/Informational/Attention/Urgent state.", "event-driven");
-        yield return new("attention.reason", "Attention reason", "Human-readable reason supplied by a provider when available.", "event-driven");
-        yield return new("attention.isActive", "Needs attention", "True when attention level is not None.", "event-driven");
     }
 }
