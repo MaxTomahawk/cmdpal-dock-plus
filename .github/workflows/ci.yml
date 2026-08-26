@@ -41,6 +41,12 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Verify architecture publish profile
+        shell: pwsh
+        run: |
+          $profile = if ('${{ matrix.platform }}' -eq 'x64') { 'win-x64.pubxml' } else { 'win-arm64.pubxml' }
+          $path = "src/CmdPalDockPlus.Extension/Properties/PublishProfiles/$profile"
+          if (-not (Test-Path -LiteralPath $path)) { throw "Required CmdPal publish profile missing: $path" }
       - name: Restore extension
         shell: pwsh
         run: dotnet restore src/CmdPalDockPlus.Extension/CmdPalDockPlus.Extension.csproj -p:Platform=${{ matrix.platform }}
@@ -61,6 +67,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Unsigned namespace validation failed for $($package.FullName)" }
             & ./scripts/Test-CmdPalExtensionPackage.ps1 -PackagePath $package.FullName
             if ($LASTEXITCODE -ne 0) { throw "CmdPal package contract validation failed for $($package.FullName)" }
+            if ('${{ matrix.platform }}' -eq 'x64') {
+              & ./scripts/Test-CmdPalExtensionStartup.ps1 -PackagePath $package.FullName
+              if ($LASTEXITCODE -ne 0) { throw "CmdPal extension startup smoke test failed for $($package.FullName)" }
+            }
           }
 
   hover-patch-check:
