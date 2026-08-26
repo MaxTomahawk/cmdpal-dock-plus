@@ -26,6 +26,7 @@ public sealed record WindowSnapshot(
     bool IsActive,
     string Monitor,
     long MruRank,
-    string? ExecutablePath = null);
+    string? ExecutablePath = null,
+    string? AppUserModelId = null);
 
 public sealed record WindowSetChanged(IReadOnlyList<WindowSnapshot> Snapshot);
