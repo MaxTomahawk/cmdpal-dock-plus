@@ -36,15 +36,15 @@ net session >nul 2>&1
 if errorlevel 1 (
     echo Requesting administrator elevation...
     powershell.exe -NoProfile -Command "$q=[char]34; $cmd=$q+$env:CMDPAL_INSTALLER+$q+' '+$q+$env:CMDPAL_PACKAGE+$q; $p=Start-Process -FilePath $env:ComSpec -Verb RunAs -Wait -PassThru -ArgumentList @('/d','/c',$cmd); exit $p.ExitCode"
-    exit /b %errorlevel%
+    exit /b !errorlevel!
 )
 
 echo Installing unsigned CmdPal Dock Plus package:
 echo   %PACKAGE%
 powershell.exe -NoProfile -Command "Add-AppxPackage -Path $env:CMDPAL_PACKAGE -AllowUnsigned"
 if errorlevel 1 (
-    echo Installation failed with exit code %errorlevel%.
-    exit /b %errorlevel%
+    echo Installation failed with exit code !errorlevel!.
+    exit /b !errorlevel!
 )
 
 echo Installation completed. Restart PowerToys Command Palette if the extension is not detected immediately.
