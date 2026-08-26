@@ -176,7 +176,7 @@ public sealed class MediaSessionService : IMediaSessionService
 
     private async ValueTask<bool> InvokeAsync(
         string sourceAppId,
-        Func<GlobalSystemMediaTransportControlsSession, Windows.Foundation.IAsyncOperation<bool>> command,
+        Func<GlobalSystemMediaTransportControlsSession, global::Windows.Foundation.IAsyncOperation<bool>> command,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
