@@ -62,11 +62,9 @@ public sealed class WindowTracker : IWindowTracker
                 .OrderBy(window => (long)window.Hwnd)
                 .ToArray();
 
-            IReadOnlyList<WindowSnapshot> previous;
             lock (_snapshotGate)
             {
-                previous = _snapshot;
-                if (SequenceEqual(previous, latest))
+                if (SequenceEqual(_snapshot, latest))
                 {
                     return;
                 }
@@ -105,11 +103,13 @@ public sealed class WindowTracker : IWindowTracker
 
     private async Task WorkerAsync(CancellationToken cancellationToken)
     {
-        await foreach (var _ in _requests.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        await foreach (var request in _requests.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
+            _ = request;
             await Task.Delay(_debounce, cancellationToken).ConfigureAwait(false);
-            while (_requests.Reader.TryRead(out _))
+            while (_requests.Reader.TryRead(out var ignored))
             {
+                _ = ignored;
             }
 
             await ReconcileAsync(cancellationToken).ConfigureAwait(false);
