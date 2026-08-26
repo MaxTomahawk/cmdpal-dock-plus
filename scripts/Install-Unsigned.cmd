@@ -29,17 +29,19 @@ if not exist "%PACKAGE%" (
     exit /b 3
 )
 
+set "CMDPAL_INSTALLER=%~f0"
+set "CMDPAL_PACKAGE=%PACKAGE%"
+
 net session >nul 2>&1
 if errorlevel 1 (
     echo Requesting administrator elevation...
-    powershell.exe -NoProfile -Command "Start-Process cmd.exe -Verb RunAs -ArgumentList '/d /c ""%~f0"" ""%PACKAGE%""'"
-    if errorlevel 1 exit /b %errorlevel%
-    exit /b 0
+    powershell.exe -NoProfile -Command "$cmd='"' + $env:CMDPAL_INSTALLER + '" "' + $env:CMDPAL_PACKAGE + '"'; $p=Start-Process -FilePath $env:ComSpec -Verb RunAs -Wait -PassThru -ArgumentList @('/d','/c',$cmd); exit $p.ExitCode"
+    exit /b %errorlevel%
 )
 
 echo Installing unsigned CmdPal Dock Plus package:
 echo   %PACKAGE%
-powershell.exe -NoProfile -Command "Add-AppxPackage -Path '%PACKAGE%' -AllowUnsigned"
+powershell.exe -NoProfile -Command "Add-AppxPackage -Path $env:CMDPAL_PACKAGE -AllowUnsigned"
 if errorlevel 1 (
     echo Installation failed with exit code %errorlevel%.
     exit /b %errorlevel%
@@ -55,5 +57,5 @@ echo Usage:
 echo   Install-Unsigned.cmd [path-to-msixbundle]
 echo.
 echo If no package path is supplied, exactly one CmdPalDockPlus-*.msixbundle must be next to this file.
-echo This bootstrapper uses an inline PowerShell command so PowerShell script execution policy does not need to allow unsigned .ps1 files.
+echo This bootstrapper uses inline PowerShell commands so PowerShell script execution policy does not need to allow unsigned .ps1 files.
 exit /b 0
