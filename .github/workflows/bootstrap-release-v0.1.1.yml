@@ -1,0 +1,128 @@
+name: Bootstrap Release v0.1.1
+
+on:
+  push:
+    branches: ['main']
+    paths: ['.github/workflows/bootstrap-release-v0.1.1.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025
+    env:
+      RELEASE_TAG: v0.1.1
+      RELEASE_TARGET: db41a3078d02cca9b1b1546b2a5eb27e601cb28c
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TARGET }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve release version
+        shell: pwsh
+        run: |
+          $version = & ./scripts/Get-Version.ps1 -Tag $env:RELEASE_TAG
+          "RELEASE_VERSION=$($version.SemVer)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "MSIX_VERSION=$($version.MsixVersion)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          & ./scripts/Set-PackageVersion.ps1 -Version $version.MsixVersion
+
+      - name: Test installer bootstrap help
+        shell: cmd
+        run: scripts\Install-Unsigned.cmd --help
+
+      - name: Test Core
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Core.Tests/CmdPalDockPlus.Core.Tests.csproj -c Release
+      - name: Test Windows
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Windows.Tests/CmdPalDockPlus.Windows.Tests.csproj -c Release
+      - name: Test Providers
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Providers.Tests/CmdPalDockPlus.Providers.Tests.csproj -c Release
+
+      - name: Verify PowerToys hover patch
+        shell: pwsh
+        run: |
+          $commit = (Get-Content powertoys/patches/upstream-commit.txt -Raw).Trim()
+          git clone --quiet --filter=blob:none --no-checkout https://github.com/microsoft/PowerToys.git "$env:RUNNER_TEMP/PowerToys"
+          git -C "$env:RUNNER_TEMP/PowerToys" checkout --quiet $commit
+          git -C "$env:RUNNER_TEMP/PowerToys" apply --check "$env:GITHUB_WORKSPACE/powertoys/patches/cmdpal-dock-hover.patch"
+          if ($LASTEXITCODE -ne 0) { throw 'PowerToys hover patch validation failed' }
+
+      - name: Build unsigned architecture packages
+        shell: pwsh
+        run: |
+          $packageInput = Join-Path $env:RUNNER_TEMP 'BundleInput'
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/release'
+          New-Item -ItemType Directory -Force -Path $packageInput,$releaseDir | Out-Null
+          foreach ($platform in @('x64','ARM64')) {
+            $out = Join-Path $env:RUNNER_TEMP "AppPackages/$platform"
+            dotnet restore src/CmdPalDockPlus.Extension/CmdPalDockPlus.Extension.csproj -p:Platform=$platform
+            if ($LASTEXITCODE -ne 0) { throw "Restore failed for $platform" }
+            dotnet build src/CmdPalDockPlus.Extension/CmdPalDockPlus.Extension.csproj -c Release -p:Platform=$platform -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false -p:AppxPackageDir="$out/" --no-restore
+            if ($LASTEXITCODE -ne 0) { throw "Package build failed for $platform" }
+            $packages = @(Get-ChildItem $out -Recurse -File | Where-Object Extension -eq '.msix')
+            if ($packages.Count -ne 1) { throw "Expected one MSIX for $platform; found $($packages.Count)" }
+            $arch = $platform.ToLowerInvariant()
+            $name = "CmdPalDockPlus-$env:RELEASE_VERSION-$arch.msix"
+            Copy-Item $packages[0].FullName (Join-Path $packageInput $name)
+            Copy-Item $packages[0].FullName (Join-Path $releaseDir $name)
+          }
+
+      - name: Build MSIX bundle
+        shell: pwsh
+        run: |
+          $input = Join-Path $env:RUNNER_TEMP 'BundleInput'
+          $bundle = Join-Path $env:GITHUB_WORKSPACE "artifacts/release/CmdPalDockPlus-$env:RELEASE_VERSION.msixbundle"
+          & ./scripts/Create-MsixBundle.ps1 -InputDirectory $input -OutputPath $bundle
+
+      - name: Collect installers and compatibility patch
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/release'
+          Copy-Item scripts/Install-Unsigned.cmd (Join-Path $releaseDir 'Install-Unsigned.cmd')
+          Copy-Item scripts/Install-Unsigned.ps1 (Join-Path $releaseDir 'Install-Unsigned.ps1')
+          Compress-Archive -Path powertoys/README.md,powertoys/patches/* -DestinationPath (Join-Path $releaseDir "CmdPalDockPlus-PowerToysPatch-$env:RELEASE_VERSION.zip") -Force
+
+      - name: Generate and verify checksums
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/release'
+          $files = @(Get-ChildItem $releaseDir -File | Sort-Object Name)
+          if (-not ($files.Name -match '\.msixbundle$')) { throw 'MSIX bundle missing from release staging' }
+          if (-not ($files.Name -contains 'Install-Unsigned.cmd')) { throw 'CMD installer missing from release staging' }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+          $checksumPath = Join-Path $releaseDir 'SHA256SUMS.txt'
+          $lines | Set-Content $checksumPath -Encoding ascii
+          foreach ($line in Get-Content $checksumPath) {
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') { throw "Malformed checksum line: $line" }
+            $actual = (Get-FileHash (Join-Path $releaseDir $Matches[2]) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $Matches[1]) { throw "Checksum mismatch: $($Matches[2])" }
+          }
+
+      - name: Publish GitHub Release and tag exact verified target
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          CmdPal Dock Plus $env:RELEASE_VERSION
+
+          Hotfix: use `Install-Unsigned.cmd` as the recommended installer on systems where Group Policy requires PowerShell script files to be signed. The CMD bootstrapper uses inline PowerShell and does not load an unsigned `.ps1` file.
+
+          Download `CmdPalDockPlus-$env:RELEASE_VERSION.msixbundle` and `Install-Unsigned.cmd` into the same folder, then run `Install-Unsigned.cmd`. Windows will request administrator elevation. The package is installed with `Add-AppxPackage -AllowUnsigned`.
+
+          `Install-Unsigned.ps1` remains included only as a compatibility fallback for systems whose PowerShell policy permits it.
+
+          Requires PowerToys 0.101.0 or newer on Windows 11. Live DWM hover previews require the optional PowerToys compatibility patch ZIP; all core Dock functionality works without it.
+          "@
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          $notes | Set-Content $notesPath -Encoding utf8
+          gh release create $env:RELEASE_TAG artifacts/release/* --repo $env:GITHUB_REPOSITORY --title "CmdPal Dock Plus $env:RELEASE_VERSION" --notes-file $notesPath --target $env:RELEASE_TARGET
