@@ -18,7 +18,7 @@ public sealed class TaskbarStateStore
     {
         lock (_gate)
         {
-            return _states.TryGetValue(hwnd, out var state) ? Clone(state) : null;
+            return _states.TryGetValue(hwnd, out var state) ? CopyState(state) : null;
         }
     }
 
@@ -26,7 +26,7 @@ public sealed class TaskbarStateStore
     {
         lock (_gate)
         {
-            return _states.ToDictionary(pair => pair.Key, pair => Clone(pair.Value));
+            return _states.ToDictionary(pair => pair.Key, pair => CopyState(pair.Value));
         }
     }
 
@@ -113,7 +113,7 @@ public sealed class TaskbarStateStore
     private bool ApplyOverlay(OverlayChanged message)
     {
         var current = StateFor(message.Hwnd, message.ProcessId);
-        var overlay = message.Overlay.Clone();
+        var overlay = message.Overlay.DeepCopy();
         var next = current with { Overlay = overlay };
         return Replace(message.Hwnd, current, next);
     }
@@ -178,6 +178,6 @@ public sealed class TaskbarStateStore
             && left.Overlay.Rgba.AsSpan().SequenceEqual(right.Overlay.Rgba);
     }
 
-    private static TaskbarWindowState Clone(TaskbarWindowState state)
-        => state with { Overlay = state.Overlay?.Clone() };
+    private static TaskbarWindowState CopyState(TaskbarWindowState state)
+        => state with { Overlay = state.Overlay?.DeepCopy() };
 }
