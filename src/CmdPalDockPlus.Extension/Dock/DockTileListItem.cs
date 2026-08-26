@@ -30,7 +30,15 @@ internal sealed partial class DockTileListItem : ListItem
 
     private IContextItem[] BuildContextCommands()
     {
-        var commands = new List<IContextItem>();
+        var commands = new List<IContextItem>
+        {
+            new CommandContextItem(new SmartAppMenuPage(_coordinator, Identity))
+            {
+                Title = "Smart App Menu",
+            },
+            new Separator(),
+        };
+
         foreach (var window in _state.Windows)
         {
             var hwnd = window.Hwnd;
@@ -52,26 +60,32 @@ internal sealed partial class DockTileListItem : ListItem
             });
         }
 
-        if (commands.Count != 0)
+        if (_state.Windows.Count != 0)
         {
             commands.Add(new Separator());
         }
 
         commands.Add(Context("New instance", $"app:new:{Identity.Value}", () => _ = _coordinator.LaunchNewAsync(Identity)));
-        commands.Add(Context("Open file location", $"app:location:{Identity.Value}", () => _ = _coordinator.OpenFileLocationAsync(Identity)));
+
+        var profile = _coordinator.ProfileFor(Identity);
+        if (!string.IsNullOrWhiteSpace(profile?.Application.ExecutablePath)
+            && Path.IsPathFullyQualified(profile.Application.ExecutablePath))
+        {
+            commands.Add(Context("Open file location", $"app:location:{Identity.Value}", () => _ = _coordinator.OpenFileLocationAsync(Identity)));
+        }
+
         if (_state.Windows.Count != 0)
         {
             commands.Add(Context("Close all windows", $"app:closeall:{Identity.Value}", () => _ = _coordinator.CloseAllAsync(Identity), critical: true));
         }
 
-        var profile = _coordinator.ProfileFor(Identity);
         if (profile?.UserActions.Count > 0)
         {
             commands.Add(new Separator());
             foreach (var action in profile.UserActions)
             {
                 var actionId = action.Id;
-                commands.Add(Context(action.DisplayName, $"action:{profile.Id}:{actionId}", () => _ = _coordinator.RunUserActionAsync(Identity, actionId)));
+                commands.Add(Context(action.DisplayName, $"profile:{profile.Id}:action:{actionId}", () => _ = _coordinator.RunUserActionAsync(Identity, actionId)));
             }
         }
 

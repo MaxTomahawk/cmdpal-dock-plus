@@ -43,8 +43,9 @@ public sealed class ShellDestinationSource : IAppDestinationSource
             return ValueTask.FromResult<IReadOnlyList<AppDestination>>([]);
         }
 
-        var results = Read(application.Aumid, listType, kind, limit, cancellationToken);
-        return ValueTask.FromResult(results);
+        var aumid = application.Aumid;
+        return new ValueTask<IReadOnlyList<AppDestination>>(
+            Task.Run(() => Read(aumid, listType, kind, limit, cancellationToken), cancellationToken));
     }
 
     private static IReadOnlyList<AppDestination> Read(
@@ -58,6 +59,7 @@ public sealed class ShellDestinationSource : IAppDestinationSource
         IObjectArray? array = null;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var clsid = ClsidApplicationDocumentLists;
             var iid = IidApplicationDocumentLists;
             var hr = CoCreateInstance(ref clsid, IntPtr.Zero, ClsctxInprocServer, ref iid, out lists);
@@ -249,20 +251,11 @@ public sealed class ShellDestinationSource : IAppDestinationSource
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IShellItem
     {
-        [PreserveSig]
-        int BindToHandler(IntPtr bindContext, ref Guid handler, ref Guid riid, out IntPtr value);
-
-        [PreserveSig]
-        int GetParent([MarshalAs(UnmanagedType.Interface)] out IShellItem? parent);
-
-        [PreserveSig]
-        int GetDisplayName(uint sigdnName, out IntPtr name);
-
-        [PreserveSig]
-        int GetAttributes(uint mask, out uint attributes);
-
-        [PreserveSig]
-        int Compare([MarshalAs(UnmanagedType.Interface)] IShellItem other, uint hint, out int order);
+        [PreserveSig] int BindToHandler(IntPtr bindContext, ref Guid handler, ref Guid riid, out IntPtr value);
+        [PreserveSig] int GetParent([MarshalAs(UnmanagedType.Interface)] out IShellItem? parent);
+        [PreserveSig] int GetDisplayName(uint sigdnName, out IntPtr name);
+        [PreserveSig] int GetAttributes(uint mask, out uint attributes);
+        [PreserveSig] int Compare([MarshalAs(UnmanagedType.Interface)] IShellItem other, uint hint, out int order);
     }
 
     [ComImport]

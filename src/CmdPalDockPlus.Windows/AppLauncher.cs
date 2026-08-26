@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CmdPalDockPlus.Core.Actions;
 using CmdPalDockPlus.Core.Profiles;
+using CmdPalDockPlus.Windows.Destinations;
 
 namespace CmdPalDockPlus.Windows;
 
@@ -28,6 +29,32 @@ public sealed class AppLauncher
     {
         cancellationToken.ThrowIfCancellationRequested();
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{executablePath}\"") { UseShellExecute = true });
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask OpenDestinationAsync(AppDestination destination, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(destination.Path))
+        {
+            throw new InvalidOperationException("Destination has no target.");
+        }
+
+        var target = destination.Path.Trim();
+        var isPath = Path.IsPathFullyQualified(target);
+        var isUri = Uri.TryCreate(target, UriKind.Absolute, out var uri)
+            && uri.Scheme is "file" or "http" or "https";
+        if (!isPath && !isUri)
+        {
+            throw new InvalidOperationException("Destination target is not a supported path or URI.");
+        }
+
+        var startInfo = new ProcessStartInfo(target)
+        {
+            UseShellExecute = true,
+            Arguments = destination.Arguments ?? string.Empty,
+        };
+        Process.Start(startInfo);
         return ValueTask.CompletedTask;
     }
 
