@@ -1,4 +1,5 @@
 using CmdPalDockPlus.Extension.SystemStatus;
+using CmdPalDockPlus.Extension.Tray;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
@@ -8,6 +9,7 @@ public sealed partial class CmdPalDockPlusCommandsProvider : CommandProvider
 {
     private readonly DockPlusRuntime _runtime = new();
     private readonly SystemStatusBandController _systemStatus = new();
+    private readonly TrayBandController _tray = new();
     private readonly ConfigurationPage _configurationPage;
     private readonly CommandItem _configurationCommand;
     private readonly WrappedDockItem _applicationsBand;
@@ -44,7 +46,7 @@ public sealed partial class CmdPalDockPlusCommandsProvider : CommandProvider
 
     public override ICommandItem[] TopLevelCommands() => [_configurationCommand];
 
-    public override ICommandItem[] GetDockBands() => [_applicationsBand, _systemBand];
+    public override ICommandItem[] GetDockBands() => [_applicationsBand, _systemBand, _tray.Band];
 
     public override ICommandItem? GetCommandItem(string id)
         => _pinItems.TryGetValue(id, out var item) ? item : null;
@@ -52,6 +54,7 @@ public sealed partial class CmdPalDockPlusCommandsProvider : CommandProvider
     public override void Dispose()
     {
         _runtime.Coordinator.TilesChanged -= OnTilesChanged;
+        _tray.Dispose();
         _systemStatus.Dispose();
         _runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
         GC.SuppressFinalize(this);
