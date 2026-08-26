@@ -20,6 +20,8 @@ The `v0.1.x` line targets Windows 11 and PowerToys **0.101.0 or newer**.
 
 `v0.1.1` changes the default unsigned-package installer to `Install-Unsigned.cmd` so installation still works on machines where Group Policy requires PowerShell script files to be signed. The actual package-install command is unchanged: `Add-AppxPackage -AllowUnsigned`.
 
+`v0.1.2` fixes Windows deployment error `0x80073D2C` (`ERROR_UNSIGNED_PACKAGE_INVALID_PUBLISHER_NAMESPACE`) by using the Windows-defined unsigned-package publisher OID required by `Add-AppxPackage -AllowUnsigned`. Do not use the v0.1.1 package for unsigned installation; use v0.1.2 or newer.
+
 The core extension does **not** require a custom PowerToys build. The optional PowerToys patch is required only for automatic hover thumbnails because the public Command Palette extension SDK does not expose Dock pointer/hover events to extensions.
 
 This release line intentionally does **not** ship generic third-party process injection for native `ITaskbarList3` progress/overlay interception.
@@ -74,7 +76,7 @@ The CMD bootstrapper deliberately does **not** execute an unsigned `.ps1` file, 
 You can also provide an explicit package path:
 
 ```cmd
-Install-Unsigned.cmd "C:\path\to\CmdPalDockPlus-0.1.1.msixbundle"
+Install-Unsigned.cmd "C:\path\to\CmdPalDockPlus-0.1.2.msixbundle"
 ```
 
 ### Direct installation without either installer file
@@ -82,13 +84,13 @@ Install-Unsigned.cmd "C:\path\to\CmdPalDockPlus-0.1.1.msixbundle"
 Open an **Administrator** Windows PowerShell window in the folder containing the bundle and run:
 
 ```powershell
-Add-AppxPackage -Path .\CmdPalDockPlus-0.1.1.msixbundle -AllowUnsigned
+Add-AppxPackage -Path .\CmdPalDockPlus-0.1.2.msixbundle -AllowUnsigned
 ```
 
 Or from PowerShell 7, request an elevated Windows PowerShell process without executing a script file:
 
 ```powershell
-$pkg = (Resolve-Path .\CmdPalDockPlus-0.1.1.msixbundle).Path
+$pkg = (Resolve-Path .\CmdPalDockPlus-0.1.2.msixbundle).Path
 Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList "-NoProfile -Command `"Add-AppxPackage -Path '$pkg' -AllowUnsigned`""
 ```
 
@@ -116,6 +118,17 @@ To inspect your machine:
 ```powershell
 Get-ExecutionPolicy -List
 ```
+
+### Troubleshooting `0x80073D2C`
+
+If Windows reports:
+
+```text
+The package deployment failed because its publisher is not in the unsigned namespace.
+0x80073D2C / ERROR_UNSIGNED_PACKAGE_INVALID_PUBLISHER_NAMESPACE
+```
+
+use **v0.1.2 or newer**. v0.1.1 used an incorrect publisher OID in the MSIX identity. Do not work around this by disabling Windows security policy or installing a made-up certificate; replace the old bundle with a current release. CI and the Release workflow now inspect the `AppxManifest.xml` inside every newly built x64/ARM64 MSIX and reject packages that do not use the Windows-defined unsigned publisher namespace.
 
 ### Unsigned development channel
 
