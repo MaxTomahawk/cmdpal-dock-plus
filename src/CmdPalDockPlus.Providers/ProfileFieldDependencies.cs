@@ -20,6 +20,7 @@ public static class ProfileFieldDependencies
             {
                 switch (action)
                 {
+                    case GroupAction group: AddTemplate(group.Key); break;
                     case SetTitleTemplateAction title: AddTemplate(title.Template); break;
                     case SetSubtitleTemplateAction subtitle: AddTemplate(subtitle.Template); break;
                     case SetIconTemplateAction icon: AddTemplate(icon.Template); break;
