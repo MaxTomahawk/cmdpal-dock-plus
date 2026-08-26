@@ -1,5 +1,6 @@
 using Microsoft.CommandPalette.Extensions;
 using Shmuelie.WinRTServer;
+using Shmuelie.WinRTServer.CsWinRT;
 using System.Threading;
 
 namespace CmdPalDockPlus.Extension;
