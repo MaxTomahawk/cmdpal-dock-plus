@@ -43,8 +43,8 @@ public sealed class TileComposerTests
             [
                 new DockRule(
                     "workspace",
-                    [new RuleCondition("workspace", RuleOperator.Exists)],
-                    [new GroupAction("{workspace}")]),
+                    [new RuleCondition("vscode.workspace", RuleOperator.Exists)],
+                    [new GroupAction("{vscode.workspace}")]),
             ],
         };
         var windows = new[]
@@ -82,7 +82,7 @@ internal static class Fixtures
             ["window.title"] = title,
             ["app.name"] = "App",
         };
-        if (workspace is not null) values["workspace"] = workspace;
+        if (workspace is not null) values["vscode.workspace"] = workspace;
         return new TileWindow(hwnd, checked((int)hwnd + 9), title, isActive, mruRank, values);
     }
 }
