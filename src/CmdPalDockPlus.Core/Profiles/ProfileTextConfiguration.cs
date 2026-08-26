@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CmdPalDockPlus.Core.Actions;
 using CmdPalDockPlus.Core.Rules;
 
@@ -144,14 +145,14 @@ public static class ProfileTextConfiguration
             }),
             SerializerOptions);
 
-    private static object ActionModel(RuleAction action) => action switch
+    private static RuleActionTextModel ActionModel(RuleAction action) => action switch
     {
-        GroupAction group => new { action = "group", key = group.Key, template = (string?)null },
-        SeparateAction => new { action = "separate", key = (string?)null, template = (string?)null },
-        HideAction => new { action = "hide", key = (string?)null, template = (string?)null },
-        SetTitleTemplateAction title => new { action = "title", key = (string?)null, template = title.Template },
-        SetSubtitleTemplateAction subtitle => new { action = "subtitle", key = (string?)null, template = subtitle.Template },
-        SetIconTemplateAction icon => new { action = "icon", key = (string?)null, template = icon.Template },
+        GroupAction group => new("group", group.Key, null),
+        SeparateAction => new("separate", null, null),
+        HideAction => new("hide", null, null),
+        SetTitleTemplateAction title => new("title", null, title.Template),
+        SetSubtitleTemplateAction subtitle => new("subtitle", null, subtitle.Template),
+        SetIconTemplateAction icon => new("icon", null, icon.Template),
         _ => throw new ProfileTextConfigurationException($"Unsupported rule action type '{action.GetType().Name}'."),
     };
 
@@ -175,4 +176,9 @@ public static class ProfileTextConfiguration
 
     private static string OperatorName(RuleOperator value)
         => value.ToString().ToLowerInvariant();
+
+    private sealed record RuleActionTextModel(
+        [property: JsonPropertyName("action")] string Action,
+        [property: JsonPropertyName("key")] string? Key,
+        [property: JsonPropertyName("template")] string? Template);
 }
