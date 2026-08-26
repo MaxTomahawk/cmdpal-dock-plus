@@ -1,0 +1,33 @@
+name: Bootstrap Release v0.1.2
+
+on:
+  push:
+    branches: ['main']
+    paths: ['.github/workflows/bootstrap-release-v0.1.2.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: v0.1.2
+      RELEASE_TARGET: bbe06950a5406ba50a7874555d1dbd1639afa63a
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag exact verified release target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            actual="$(git rev-list -n 1 "${RELEASE_TAG}")"
+            test "${actual}" = "${RELEASE_TARGET}"
+            echo "${RELEASE_TAG} already points to ${RELEASE_TARGET}"
+            exit 0
+          fi
+          git tag "${RELEASE_TAG}" "${RELEASE_TARGET}"
+          git push origin "refs/tags/${RELEASE_TAG}"
