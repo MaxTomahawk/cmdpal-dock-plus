@@ -17,7 +17,7 @@ public sealed record TaskbarOverlay(
 {
     public const int MaxDimension = 256;
 
-    public TaskbarOverlay Clone()
+    public TaskbarOverlay DeepCopy()
         => new(Width, Height, Rgba.ToArray(), Description);
 }
 
