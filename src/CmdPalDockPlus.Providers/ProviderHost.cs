@@ -1,5 +1,7 @@
 using CmdPalDockPlus.Core.Profiles;
+using CmdPalDockPlus.Providers.Media;
 using CmdPalDockPlus.Windows;
+using CmdPalDockPlus.Windows.Media;
 
 namespace CmdPalDockPlus.Providers;
 
@@ -14,27 +16,67 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
     private bool _needsSampling;
     private bool _disposed;
 
-    public ProviderHost(IProcessMetricsReader? metrics = null, IEnumerable<IWindowDataAdapter>? adapters = null)
+    public ProviderHost(
+        IProcessMetricsReader? metrics = null,
+        IEnumerable<IWindowDataAdapter>? adapters = null,
+        IMediaSessionService? mediaSessionService = null)
     {
         _metrics = metrics ?? new ProcessMetricsReader();
-        _adapters = (adapters ?? [new VSCodeAdapter(), new BrowserAdapter(), new TerminalAdapter(), new ExplorerAdapter()]).ToArray();
+        _adapters = (adapters ??
+        [
+            new VSCodeAdapter(),
+            new BrowserAdapter(),
+            new TerminalAdapter(),
+            new ExplorerAdapter(),
+            new MediaProvider(mediaSessionService ?? new MediaSessionService()),
+        ]).ToArray();
+
+        foreach (var invalidating in _adapters.OfType<IInvalidatingWindowDataAdapter>())
+        {
+            invalidating.DataInvalidated += OnAdapterInvalidated;
+        }
     }
 
     public event EventHandler? DataInvalidated;
+
     public IReadOnlySet<string> RequestedFields(AppProfile profile) => ProfileFieldDependencies.Resolve(profile);
 
     public IReadOnlyList<CapabilityDescriptor> Probe(WindowSnapshot? window)
     {
         var result = GenericCapabilities().ToList();
-        if (window is not null) foreach (var adapter in _adapters.Where(a => a.Supports(window))) result.AddRange(adapter.Capabilities);
-        return result;
+        if (window is not null)
+        {
+            foreach (var adapter in _adapters.Where(adapter => adapter.Supports(window)))
+            {
+                result.AddRange(adapter.Capabilities);
+            }
+        }
+
+        return result
+            .GroupBy(capability => capability.Id, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(capability => capability.Id, StringComparer.Ordinal)
+            .ToArray();
     }
 
-    public IReadOnlyDictionary<string, object?> Enrich(AppProfile profile, WindowSnapshot window, IReadOnlyDictionary<string, object?> genericValues)
+    public IReadOnlyDictionary<string, object?> Enrich(
+        AppProfile profile,
+        WindowSnapshot window,
+        IReadOnlyDictionary<string, object?> genericValues)
     {
         var requested = RequestedFields(profile);
         Dictionary<string, object?> values = new(genericValues, StringComparer.Ordinal);
-        foreach (var adapter in _adapters.Where(adapter => adapter.Supports(window))) adapter.Enrich(window, requested, values);
+
+        if (requested.Contains("app.name")) values["app.name"] = profile.DisplayName;
+        if (requested.Contains("attention.level")) values["attention.level"] = "None";
+        if (requested.Contains("attention.reason")) values["attention.reason"] = null;
+        if (requested.Contains("attention.isActive")) values["attention.isActive"] = false;
+
+        foreach (var adapter in _adapters.Where(adapter => adapter.Supports(window)))
+        {
+            adapter.Enrich(window, requested, values);
+        }
+
         if (Overlaps(requested, ProcessMetricFields))
         {
             try
@@ -44,19 +86,27 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
                 if (requested.Contains("process.memory")) values["process.memory"] = sample.MemoryBytes;
                 if (requested.Contains("process.uptime")) values["process.uptime"] = sample.Uptime.TotalSeconds;
             }
-            catch (ArgumentException) { }
-            catch (InvalidOperationException) { }
+            catch (ArgumentException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
+
         return values;
     }
 
     public void ConfigureSampling(IEnumerable<AppProfile> profiles)
     {
-        var needed = profiles.Any(profile => Overlaps(RequestedFields(profile), ProcessMetricFields));
+        var needed = profiles.Where(profile => profile.Enabled).Any(profile => Overlaps(RequestedFields(profile), ProcessMetricFields));
         lock (_samplingGate)
         {
             _needsSampling = needed;
-            if (needed && _samplingTask is null) _samplingTask = Task.Run(() => SamplingLoopAsync(_disposeCts.Token), CancellationToken.None);
+            if (needed && _samplingTask is null)
+            {
+                _samplingTask = Task.Run(() => SamplingLoopAsync(_disposeCts.Token), CancellationToken.None);
+            }
         }
     }
 
@@ -65,6 +115,12 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
         if (_disposed) return;
         _disposed = true;
         _disposeCts.Cancel();
+        UnsubscribeAdapters();
+        foreach (var disposable in _adapters.OfType<IDisposable>())
+        {
+            disposable.Dispose();
+        }
+
         _disposeCts.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -74,7 +130,31 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
         if (_disposed) return;
         _disposed = true;
         _disposeCts.Cancel();
-        if (_samplingTask is not null) { try { await _samplingTask.ConfigureAwait(false); } catch (OperationCanceledException) { } }
+        UnsubscribeAdapters();
+
+        if (_samplingTask is not null)
+        {
+            try
+            {
+                await _samplingTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        foreach (var adapter in _adapters)
+        {
+            if (adapter is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
+            else if (adapter is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
+
         _disposeCts.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -86,13 +166,36 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
         {
             lock (_samplingGate)
             {
-                if (!_needsSampling) { _samplingTask = null; return; }
+                if (!_needsSampling)
+                {
+                    _samplingTask = null;
+                    return;
+                }
             }
+
             DataInvalidated?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    private static bool Overlaps(IReadOnlySet<string> left, IReadOnlySet<string> right) { foreach (var value in left) if (right.Contains(value)) return true; return false; }
+    private void OnAdapterInvalidated(object? sender, EventArgs e) => DataInvalidated?.Invoke(this, EventArgs.Empty);
+
+    private void UnsubscribeAdapters()
+    {
+        foreach (var invalidating in _adapters.OfType<IInvalidatingWindowDataAdapter>())
+        {
+            invalidating.DataInvalidated -= OnAdapterInvalidated;
+        }
+    }
+
+    private static bool Overlaps(IReadOnlySet<string> left, IReadOnlySet<string> right)
+    {
+        foreach (var value in left)
+        {
+            if (right.Contains(value)) return true;
+        }
+
+        return false;
+    }
 
     private static IEnumerable<CapabilityDescriptor> GenericCapabilities()
     {
@@ -109,5 +212,8 @@ public sealed class ProviderHost : IDisposable, IAsyncDisposable
         yield return new("window.monitor", "Monitor", "Monitor device name.", "event-driven");
         yield return new("window.class", "Window class", "Win32 class name.", "snapshot/event");
         yield return new("window.count", "Window count", "Number of windows rendered by this tile.", "event-driven");
+        yield return new("attention.level", "Attention level", "Normalized None/Informational/Attention/Urgent state.", "event-driven");
+        yield return new("attention.reason", "Attention reason", "Human-readable reason supplied by a provider when available.", "event-driven");
+        yield return new("attention.isActive", "Needs attention", "True when attention level is not None.", "event-driven");
     }
 }
