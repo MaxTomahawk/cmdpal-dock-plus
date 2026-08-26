@@ -8,8 +8,10 @@ public sealed class TemplateParseException(string message) : FormatException(mes
 
 public static partial class TemplateCompiler
 {
+    private const string FieldPattern = @"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+";
+
     private static readonly Regex ExpressionRegex = new(
-        @"^\s*(?<primary>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)(?:\s*\?\?\s*(?<fallback>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+))?(?::(?<format>[A-Za-z0-9._-]+))?\s*$",
+        $@"^\s*(?<field>{FieldPattern})(?:\s*\?\?\s*(?<field>{FieldPattern}))*(?::(?<format>[A-Za-z0-9._-]+))?\s*$",
         RegexOptions.CultureInvariant,
         TimeSpan.FromMilliseconds(100));
 
@@ -48,14 +50,14 @@ public static partial class TemplateCompiler
                 throw new TemplateParseException($"Invalid expression: {{{inner}}}");
             }
 
-            var primary = match.Groups["primary"].Value;
-            var fallback = match.Groups["fallback"].Success ? match.Groups["fallback"].Value : null;
+            var candidates = match.Groups["field"].Captures
+                .Select(capture => capture.Value)
+                .ToArray();
             var format = match.Groups["format"].Success ? match.Groups["format"].Value : null;
-            segments.Add(new ExpressionSegment(primary, fallback, format));
-            AddDependency(primary);
-            if (fallback is not null)
+            segments.Add(new ExpressionSegment(candidates, format));
+            foreach (var candidate in candidates)
             {
-                AddDependency(fallback);
+                AddDependency(candidate);
             }
 
             cursor = close + 1;
@@ -101,10 +103,14 @@ public sealed class CompiledTemplate
                     builder.Append(literal.Text);
                     break;
                 case ExpressionSegment expression:
-                    values.TryGetValue(expression.Primary, out var value);
-                    if (value is null && expression.Fallback is not null)
+                    object? value = null;
+                    foreach (var candidate in expression.Candidates)
                     {
-                        values.TryGetValue(expression.Fallback, out value);
+                        values.TryGetValue(candidate, out value);
+                        if (value is not null)
+                        {
+                            break;
+                        }
                     }
 
                     if (value is null)
@@ -131,4 +137,4 @@ public sealed class CompiledTemplate
 
 internal abstract record TemplateSegment;
 internal sealed record LiteralSegment(string Text) : TemplateSegment;
-internal sealed record ExpressionSegment(string Primary, string? Fallback, string? Format) : TemplateSegment;
+internal sealed record ExpressionSegment(IReadOnlyList<string> Candidates, string? Format) : TemplateSegment;
