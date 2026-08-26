@@ -24,7 +24,7 @@ internal sealed partial class DockTileListItem : ListItem
         _state = state;
         Title = state.Title;
         Subtitle = state.Subtitle;
-        Icon = new IconInfo("\uE8A5");
+        Icon = new IconInfo(string.IsNullOrWhiteSpace(state.IconSource) ? "\uE737" : state.IconSource);
         MoreCommands = BuildContextCommands();
     }
 
