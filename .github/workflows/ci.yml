@@ -1,0 +1,68 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  managed-tests:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test Core
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Core.Tests/CmdPalDockPlus.Core.Tests.csproj -c Release
+      - name: Test Windows
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Windows.Tests/CmdPalDockPlus.Windows.Tests.csproj -c Release
+      - name: Test Providers
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Providers.Tests/CmdPalDockPlus.Providers.Tests.csproj -c Release
+
+  extension-build:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore extension
+        shell: pwsh
+        run: dotnet restore src/CmdPalDockPlus.Extension/CmdPalDockPlus.Extension.csproj -p:Platform=${{ matrix.platform }}
+      - name: Build extension
+        shell: pwsh
+        run: dotnet build src/CmdPalDockPlus.Extension/CmdPalDockPlus.Extension.csproj -c Release -p:Platform=${{ matrix.platform }} --no-restore
+      - name: Build unsigned MSIX smoke package
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "AppPackages/${{ matrix.platform }}"
+          dotnet build src/CmdPalDockPlus.Extension/CmdPalDockPlus.Extension.csproj -c Release -p:Platform=${{ matrix.platform }} -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false -p:AppxPackageDir="$out/"
+          if ($LASTEXITCODE -ne 0) { throw 'MSIX build failed' }
+          $packages = @(Get-ChildItem $out -Recurse -File | Where-Object Extension -in '.msix','.appx')
+          if ($packages.Count -lt 1) { throw "No MSIX/AppX package produced in $out" }
+          $packages | ForEach-Object { Write-Host $_.FullName }
+
+  hover-patch-check:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify patch against pinned PowerToys commit
+        shell: pwsh
+        run: |
+          $commit = (Get-Content powertoys/patches/upstream-commit.txt -Raw).Trim()
+          git clone --quiet --filter=blob:none --no-checkout https://github.com/microsoft/PowerToys.git "$env:RUNNER_TEMP/PowerToys"
+          git -C "$env:RUNNER_TEMP/PowerToys" checkout --quiet $commit
+          git -C "$env:RUNNER_TEMP/PowerToys" apply --check "$env:GITHUB_WORKSPACE/powertoys/patches/cmdpal-dock-hover.patch"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned PowerToys hover patch no longer applies' }

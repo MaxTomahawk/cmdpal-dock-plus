@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>CmdPalDockPlus.Providers</RootNamespace>
+    <AssemblyName>CmdPalDockPlus.Providers</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CmdPalDockPlus.Core\CmdPalDockPlus.Core.csproj" />
+    <ProjectReference Include="..\CmdPalDockPlus.Windows\CmdPalDockPlus.Windows.csproj" />
+  </ItemGroup>
+</Project>

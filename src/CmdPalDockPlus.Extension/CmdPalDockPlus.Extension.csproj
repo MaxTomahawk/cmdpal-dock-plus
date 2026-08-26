@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>CmdPalDockPlus.Extension</RootNamespace>
+    <AssemblyName>CmdPalDockPlus.Extension</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <WindowsSdkPackageVersion>10.0.26100.68-preview</WindowsSdkPackageVersion>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <Platforms>x64;ARM64</Platforms>
+    <PublishProfile>win-$(Platform).pubxml</PublishProfile>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <UseWPF>true</UseWPF>
+    <PublishSingleFile>false</PublishSingleFile>
+    <IsAotCompatible>false</IsAotCompatible>
+    <PublishTrimmed>false</PublishTrimmed>
+    <CsWinRTAotOptimizerEnabled>true</CsWinRTAotOptimizerEnabled>
+    <CsWinRTAotWarningLevel>2</CsWinRTAotWarningLevel>
+    <WarningsNotAsErrors>IL2081;$(WarningsNotAsErrors)</WarningsNotAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+    <Content Include="Assets\*.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CommandPalette.Extensions" />
+    <PackageReference Include="Microsoft.Windows.CsWinRT" />
+    <PackageReference Include="Shmuelie.WinRTServer" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CmdPalDockPlus.Core\CmdPalDockPlus.Core.csproj" />
+    <ProjectReference Include="..\CmdPalDockPlus.Windows\CmdPalDockPlus.Windows.csproj" />
+    <ProjectReference Include="..\CmdPalDockPlus.Providers\CmdPalDockPlus.Providers.csproj" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'!='Debug'">
+    <ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
