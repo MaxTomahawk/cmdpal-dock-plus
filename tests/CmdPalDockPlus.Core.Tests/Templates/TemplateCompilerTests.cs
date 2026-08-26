@@ -36,7 +36,7 @@ public sealed class TemplateCompilerTests
     [Fact]
     public void ExecutableSyntaxIsRejected()
     {
-        var action = () => TemplateCompiler.Compile("{System.Diagnostics.Process.Start_cmd}");
+        var action = () => TemplateCompiler.Compile("{System.Diagnostics.Process.Start('cmd')}");
         action.Should().Throw<TemplateParseException>();
     }
 }
