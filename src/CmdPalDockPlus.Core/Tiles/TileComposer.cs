@@ -112,14 +112,23 @@ public sealed class TileComposer
         var values = BuildValues(profile, windows, selected);
         var titleTemplate = TemplateCompiler.Compile(rule?.TitleTemplate ?? profile.Display.Title);
         var subtitleTemplate = TemplateCompiler.Compile(rule?.SubtitleTemplate ?? profile.Display.Subtitle);
+        var iconTemplateSource = rule?.IconTemplate ?? profile.Display.Icon;
         var title = titleTemplate.Evaluate(values);
         var subtitle = subtitleTemplate.Evaluate(values);
+        var iconSource = string.IsNullOrWhiteSpace(iconTemplateSource)
+            ? null
+            : TemplateCompiler.Compile(iconTemplateSource).Evaluate(values);
         if (string.IsNullOrWhiteSpace(title))
         {
             title = profile.DisplayName;
         }
 
-        return new(identity, title, subtitle, windows.ToArray(), selected?.Hwnd, rule?.IconTemplate ?? profile.Display.Icon);
+        if (string.IsNullOrWhiteSpace(iconSource))
+        {
+            iconSource = null;
+        }
+
+        return new(identity, title, subtitle, windows.ToArray(), selected?.Hwnd, iconSource);
     }
 
     private static TileWindow? SelectPrimary(IReadOnlyList<TileWindow> windows)
