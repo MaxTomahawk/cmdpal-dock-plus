@@ -9,6 +9,8 @@ public readonly record struct VolumeSnapshot(int Percent, bool IsMuted)
 
 public sealed class VolumeService : IDisposable
 {
+    private static readonly Guid MmDeviceEnumeratorClsid = new("BCDE0395-E52F-467C-8E3D-C4579291692E");
+
     private readonly object _gate = new();
     private readonly IAudioEndpointVolume _endpoint;
     private readonly EndpointVolumeCallback _callback;
@@ -17,7 +19,11 @@ public sealed class VolumeService : IDisposable
 
     public VolumeService()
     {
-        var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+        var enumeratorType = Type.GetTypeFromCLSID(MmDeviceEnumeratorClsid, throwOnError: true)
+            ?? throw new COMException("MMDeviceEnumerator COM class is unavailable.");
+        var enumeratorObject = Activator.CreateInstance(enumeratorType)
+            ?? throw new COMException("Could not create MMDeviceEnumerator.");
+        var enumerator = (IMMDeviceEnumerator)enumeratorObject;
         try
         {
             ThrowIfFailed(enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, ERole.Multimedia, out var device));
@@ -160,10 +166,6 @@ public sealed class VolumeService : IDisposable
         RemoteServer = 0x10,
         All = InprocServer | InprocHandler | LocalServer | RemoteServer,
     }
-
-    [ComImport]
-    [Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
-    private sealed class MMDeviceEnumeratorComObject;
 
     [ComImport]
     [Guid("A95664D2-9614-4F35-A746-DE8DB63617E6")]
