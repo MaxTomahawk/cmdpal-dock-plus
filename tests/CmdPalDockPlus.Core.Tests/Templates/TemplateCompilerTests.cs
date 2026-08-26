@@ -26,6 +26,20 @@ public sealed class TemplateCompilerTests
     }
 
     [Fact]
+    public void ChainedNullCoalesceUsesFirstAvailableValueAndTracksAllDependencies()
+    {
+        var template = TemplateCompiler.Compile("{media.title ?? window.title ?? app.name}");
+
+        template.Dependencies.Should().Equal("media.title", "window.title", "app.name");
+        template.Evaluate(new Dictionary<string, object?>
+        {
+            ["media.title"] = null,
+            ["window.title"] = null,
+            ["app.name"] = "Player",
+        }).Should().Be("Player");
+    }
+
+    [Fact]
     public void NumericFormatIsApplied()
     {
         var template = TemplateCompiler.Compile("{process.cpu:0.0}%");
