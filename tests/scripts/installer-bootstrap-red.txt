@@ -1,1 +1,0 @@
-RED gate: scripts/Install-Unsigned.cmd must exist and support --help without attempting installation.
