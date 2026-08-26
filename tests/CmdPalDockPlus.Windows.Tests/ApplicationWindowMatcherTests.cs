@@ -23,6 +23,15 @@ public sealed class ApplicationWindowMatcherTests
     }
 
     [Fact]
+    public void AumidTakesPrecedenceOverSharedHostExecutable()
+    {
+        var application = new ApplicationMatch(@"C:\Windows\System32\ApplicationFrameHost.exe", "Contoso.One!App");
+        var otherPackagedApp = Snapshot("ApplicationFrameHost.exe", "Contoso.Two!App");
+
+        Assert.False(ApplicationWindowMatcher.Matches(application, otherPackagedApp));
+    }
+
+    [Fact]
     public void DoesNotMatchDifferentExecutableOrAumid()
     {
         var application = new ApplicationMatch(@"C:\Apps\One.exe", "Contoso.One!App");
