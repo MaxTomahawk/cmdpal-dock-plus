@@ -116,7 +116,7 @@ public sealed class TileComposer
         var title = titleTemplate.Evaluate(values);
         var subtitle = subtitleTemplate.Evaluate(values);
         var iconSource = string.IsNullOrWhiteSpace(iconTemplateSource)
-            ? null
+            ? profile.Application.ExecutablePath
             : TemplateCompiler.Compile(iconTemplateSource).Evaluate(values);
         if (string.IsNullOrWhiteSpace(title))
         {
@@ -125,7 +125,7 @@ public sealed class TileComposer
 
         if (string.IsNullOrWhiteSpace(iconSource))
         {
-            iconSource = null;
+            iconSource = profile.Application.ExecutablePath;
         }
 
         return new(identity, title, subtitle, windows.ToArray(), selected?.Hwnd, iconSource);
