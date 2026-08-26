@@ -130,6 +130,16 @@ internal sealed partial class SmartAppMenuPage : ListPage
                     critical: true));
             }
 
+            foreach (var action in _coordinator.ProviderActions(_identity))
+            {
+                var actionId = action.Id;
+                items.Add(ActionItem(
+                    action.DisplayName,
+                    $"provider:{_identity.Value}:{actionId}",
+                    "Live app action",
+                    () => _ = _coordinator.RunProviderActionAsync(_identity, actionId)));
+            }
+
             foreach (var action in profile.UserActions)
             {
                 var actionId = action.Id;
