@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -54,18 +53,20 @@ public sealed class Win32WindowBackend : IWindowBackend
                 {
                     var title = ReadWindowText(hwnd);
                     var className = ReadClassName(hwnd);
-                    var executable = ReadExecutableName(processId);
+                    var executablePath = ReadExecutablePath(processId);
+                    var executableName = string.IsNullOrWhiteSpace(executablePath) ? string.Empty : Path.GetFileName(executablePath);
                     var state = IsIconic(hwnd) ? WindowState.Minimized : IsZoomed(hwnd) ? WindowState.Maximized : WindowState.Restored;
                     result.Add(new WindowSnapshot(
                         hwnd,
                         unchecked((int)processId),
-                        executable,
+                        executableName,
                         title,
                         className,
                         state,
                         hwnd == foreground,
                         ReadMonitorName(hwnd),
-                        rank++));
+                        rank++,
+                        executablePath));
                 }
             }
 
@@ -156,12 +157,7 @@ public sealed class Win32WindowBackend : IWindowBackend
             return false;
         }
 
-        if (owner != 0 && (exStyle & WsExAppwindow) == 0)
-        {
-            return false;
-        }
-
-        return true;
+        return owner == 0 || (exStyle & WsExAppwindow) != 0;
     }
 
     private static string ReadWindowText(nint hwnd)
@@ -184,7 +180,7 @@ public sealed class Win32WindowBackend : IWindowBackend
         return builder.ToString();
     }
 
-    private static string ReadExecutableName(uint processId)
+    private static string ReadExecutablePath(uint processId)
     {
         var process = OpenProcess(ProcessQueryLimitedInformation, false, processId);
         if (process == 0)
@@ -196,17 +192,12 @@ public sealed class Win32WindowBackend : IWindowBackend
         {
             var capacity = 32768;
             var builder = new StringBuilder(capacity);
-            if (QueryFullProcessImageName(process, 0, builder, ref capacity))
-            {
-                return Path.GetFileName(builder.ToString());
-            }
+            return QueryFullProcessImageName(process, 0, builder, ref capacity) ? builder.ToString() : string.Empty;
         }
         finally
         {
             _ = CloseHandle(process);
         }
-
-        return string.Empty;
     }
 
     private static string ReadMonitorName(nint hwnd)
@@ -226,18 +217,11 @@ public sealed class Win32WindowBackend : IWindowBackend
         public Rect Monitor;
         public Rect Work;
         public uint Flags;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
-        public string DeviceName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
+    private struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
 
     [DllImport("user32.dll", SetLastError = true)] private static extern bool EnumWindows(EnumWindowsDelegate callback, nint lParam);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindowVisible(nint hwnd);

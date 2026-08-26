@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmdPalDockPlus.Core", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmdPalDockPlus.Windows", "src\CmdPalDockPlus.Windows\CmdPalDockPlus.Windows.csproj", "{E5EB9D75-3A50-481B-BB90-373E2A86C79D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmdPalDockPlus.Extension", "src\CmdPalDockPlus.Extension\CmdPalDockPlus.Extension.csproj", "{B3A5B914-0AF3-4D0D-BD69-3629D87CE2B5}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmdPalDockPlus.Core.Tests", "tests\CmdPalDockPlus.Core.Tests\CmdPalDockPlus.Core.Tests.csproj", "{A14BCF6B-66A8-455A-B340-BCDA8558A01E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CmdPalDockPlus.Windows.Tests", "tests\CmdPalDockPlus.Windows.Tests\CmdPalDockPlus.Windows.Tests.csproj", "{39C3082E-02F6-46DE-A025-B122BFB3C0AC}"
@@ -24,6 +26,10 @@ Global
 		{E5EB9D75-3A50-481B-BB90-373E2A86C79D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5EB9D75-3A50-481B-BB90-373E2A86C79D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E5EB9D75-3A50-481B-BB90-373E2A86C79D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3A5B914-0AF3-4D0D-BD69-3629D87CE2B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3A5B914-0AF3-4D0D-BD69-3629D87CE2B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3A5B914-0AF3-4D0D-BD69-3629D87CE2B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3A5B914-0AF3-4D0D-BD69-3629D87CE2B5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A14BCF6B-66A8-455A-B340-BCDA8558A01E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A14BCF6B-66A8-455A-B340-BCDA8558A01E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A14BCF6B-66A8-455A-B340-BCDA8558A01E}.Release|Any CPU.ActiveCfg = Release|Any CPU

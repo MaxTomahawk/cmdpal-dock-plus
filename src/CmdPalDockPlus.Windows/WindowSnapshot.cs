@@ -25,6 +25,7 @@ public sealed record WindowSnapshot(
     WindowState State,
     bool IsActive,
     string Monitor,
-    long MruRank);
+    long MruRank,
+    string? ExecutablePath = null);
 
 public sealed record WindowSetChanged(IReadOnlyList<WindowSnapshot> Snapshot);
