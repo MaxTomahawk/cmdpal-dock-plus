@@ -30,7 +30,7 @@ public sealed class VSCodeAdapter : IWindowDataAdapter
         var parts = title.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (requestedFields.Contains("vscode.file") && parts.Length >= 2) values["vscode.file"] = parts[0];
         if (requestedFields.Contains("vscode.workspace") && parts.Length != 0) values["vscode.workspace"] = parts.Length >= 2 ? parts[^1] : parts[0];
-        if (requestedFields.Contains("vscode.remote")) values["vscode.remote"] = parts.FirstOrDefault(p => p.StartsWith('[', StringComparison.Ordinal) && p.EndsWith(']'));
+        if (requestedFields.Contains("vscode.remote")) values["vscode.remote"] = parts.FirstOrDefault(p => p.StartsWith("[", StringComparison.Ordinal) && p.EndsWith("]", StringComparison.Ordinal));
     }
 }
 
