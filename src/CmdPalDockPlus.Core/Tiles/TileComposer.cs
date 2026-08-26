@@ -56,7 +56,9 @@ public sealed class TileComposer
                     result.Add(ComposeForWindows(profile, [window], new TileIdentity($"{profile.Id}:hwnd:{((long)window.Hwnd).ToString("x", CultureInfo.InvariantCulture)}"), evaluation));
                     continue;
                 case RuleGrouping.Group:
-                    var key = string.IsNullOrWhiteSpace(evaluation.GroupKey) ? "default" : evaluation.GroupKey!;
+                    var keyTemplate = TemplateCompiler.Compile(evaluation.GroupKey ?? "default");
+                    var renderedKey = keyTemplate.Evaluate(values);
+                    var key = string.IsNullOrWhiteSpace(renderedKey) ? "default" : renderedKey;
                     if (!buckets.TryGetValue(key, out var bucket))
                     {
                         bucket = [];
