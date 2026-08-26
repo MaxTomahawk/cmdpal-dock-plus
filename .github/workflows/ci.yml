@@ -10,13 +10,16 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  core-tests:
+  managed-tests:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Test core
+      - name: Restore
         shell: pwsh
-        run: dotnet test tests/CmdPalDockPlus.Core.Tests/CmdPalDockPlus.Core.Tests.csproj -c Release --logger "trx;LogFileName=core.trx"
+        run: dotnet restore CmdPalDockPlus.sln
+      - name: Test
+        shell: pwsh
+        run: dotnet test CmdPalDockPlus.sln -c Release --no-restore --logger "trx;LogFileName=tests.trx"
