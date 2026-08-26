@@ -79,6 +79,20 @@ internal sealed partial class DockTileListItem : ListItem
             commands.Add(Context("Close all windows", $"app:closeall:{Identity.Value}", () => _ = _coordinator.CloseAllAsync(Identity), critical: true));
         }
 
+        var providerActions = _coordinator.ProviderActions(Identity);
+        if (providerActions.Count > 0)
+        {
+            commands.Add(new Separator());
+            foreach (var action in providerActions)
+            {
+                var actionId = action.Id;
+                commands.Add(Context(
+                    action.DisplayName,
+                    $"provider:{Identity.Value}:{actionId}",
+                    () => _ = _coordinator.RunProviderActionAsync(Identity, actionId)));
+            }
+        }
+
         if (profile?.UserActions.Count > 0)
         {
             commands.Add(new Separator());
