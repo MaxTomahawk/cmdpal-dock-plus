@@ -1,3 +1,4 @@
+using CmdPalDockPlus.Extension.SystemStatus;
 using Microsoft.CommandPalette.Extensions;
 using Microsoft.CommandPalette.Extensions.Toolkit;
 
@@ -6,9 +7,11 @@ namespace CmdPalDockPlus.Extension;
 public sealed partial class CmdPalDockPlusCommandsProvider : CommandProvider
 {
     private readonly DockPlusRuntime _runtime = new();
+    private readonly SystemStatusBandController _systemStatus = new();
     private readonly ConfigurationPage _configurationPage;
     private readonly CommandItem _configurationCommand;
     private readonly WrappedDockItem _applicationsBand;
+    private readonly WrappedDockItem _systemBand;
     private readonly Dictionary<string, CommandItem> _pinItems = new(StringComparer.Ordinal);
 
     public CmdPalDockPlusCommandsProvider()
@@ -28,13 +31,20 @@ public sealed partial class CmdPalDockPlusCommandsProvider : CommandProvider
         {
             Icon = Icon,
         };
+        _systemBand = new WrappedDockItem(
+            _systemStatus.Items,
+            "com.maxtomahawk.cmdpal.dockplus.system",
+            "System status")
+        {
+            Icon = new IconInfo("\uE713"),
+        };
         _runtime.Coordinator.TilesChanged += OnTilesChanged;
         _ = InitializeRuntimeAsync();
     }
 
     public override ICommandItem[] TopLevelCommands() => [_configurationCommand];
 
-    public override ICommandItem[] GetDockBands() => [_applicationsBand];
+    public override ICommandItem[] GetDockBands() => [_applicationsBand, _systemBand];
 
     public override ICommandItem? GetCommandItem(string id)
         => _pinItems.TryGetValue(id, out var item) ? item : null;
@@ -42,6 +52,7 @@ public sealed partial class CmdPalDockPlusCommandsProvider : CommandProvider
     public override void Dispose()
     {
         _runtime.Coordinator.TilesChanged -= OnTilesChanged;
+        _systemStatus.Dispose();
         _runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
         GC.SuppressFinalize(this);
         base.Dispose();
