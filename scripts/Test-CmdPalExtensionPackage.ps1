@@ -35,7 +35,9 @@ try {
         throw "CmdPal AppExtension '$expectedExtensionName' is missing from packaged AppxManifest.xml."
     }
 
-    $createInstance = $appExtension.SelectSingleNode('uap3:Properties/CmdPalProvider/Activation/CreateInstance', $ns)
+    # The custom CmdPalProvider property elements are unprefixed in the official
+    # template, so they inherit the package's default foundation namespace.
+    $createInstance = $appExtension.SelectSingleNode('uap3:Properties/appx:CmdPalProvider/appx:Activation/appx:CreateInstance', $ns)
     if (-not $createInstance) {
         throw 'CmdPalProvider/Activation/CreateInstance is missing from packaged AppxManifest.xml.'
     }
@@ -44,7 +46,7 @@ try {
         throw 'CmdPal CreateInstance ClassId is empty.'
     }
 
-    $commands = $appExtension.SelectSingleNode('uap3:Properties/CmdPalProvider/SupportedInterfaces/Commands', $ns)
+    $commands = $appExtension.SelectSingleNode('uap3:Properties/appx:CmdPalProvider/appx:SupportedInterfaces/appx:Commands', $ns)
     if (-not $commands) {
         throw 'CmdPal SupportedInterfaces/Commands is missing.'
     }

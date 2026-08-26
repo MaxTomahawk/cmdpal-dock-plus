@@ -28,7 +28,10 @@
     <PackageReference Include="Microsoft.CommandPalette.Extensions" />
     <PackageReference Include="Microsoft.Windows.CsWinRT" />
     <PackageReference Include="Shmuelie.WinRTServer" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CmdPalDockPlus.Core\CmdPalDockPlus.Core.csproj" />
