@@ -35,6 +35,14 @@ public sealed class TileComposerTests
     }
 
     [Fact]
+    public void DefaultIconSourceUsesApplicationExecutable()
+    {
+        var tile = new TileComposer().Compose(Fixtures.Profile(GroupingMode.Grouped), []).Should().ContainSingle().Subject;
+
+        tile.IconSource.Should().Be(@"C:\App\app.exe");
+    }
+
+    [Fact]
     public void SmartGroupKeyCanUseLiveTemplateFields()
     {
         var profile = Fixtures.Profile(GroupingMode.Smart) with
