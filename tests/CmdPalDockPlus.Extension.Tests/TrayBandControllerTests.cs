@@ -34,11 +34,21 @@ public sealed class TrayBandControllerTests
         using var controller = new TrayBandController(service);
         var hiddenLauncher = controller.Band.Items.Single(item => item.Title == "Hidden icons…");
 
-        _ = hiddenLauncher.Command!.Invoke();
+        _ = ((InvokableCommand)hiddenLauncher.Command!).Invoke();
         service.RaiseChanged();
 
         service.ShowHiddenCalls.Should().Be(1);
         controller.Band.Items.Select(item => item.Title).Should().Equal("Visible app", "Hidden icons…");
+    }
+
+    [Theory]
+    [InlineData(0, "App actions")]
+    [InlineData(1, "Window")]
+    [InlineData(2, "Windows (2)…")]
+    [InlineData(5, "Windows (5)…")]
+    public void WindowChooserTitleMakesGroupedWindowsDiscoverable(int count, string expected)
+    {
+        DockTileListItem.WindowChooserTitle(count).Should().Be(expected);
     }
 
     private sealed class FakeTrayService : ITrayService
