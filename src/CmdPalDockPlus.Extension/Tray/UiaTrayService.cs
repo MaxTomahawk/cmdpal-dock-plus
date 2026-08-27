@@ -2,13 +2,7 @@ using System.Windows.Automation;
 
 namespace CmdPalDockPlus.Extension.Tray;
 
-internal sealed record TrayEntry(
-    string Key,
-    string DisplayName,
-    bool IsVisible,
-    AutomationElement Element);
-
-internal sealed partial class UiaTrayService : IDisposable
+internal sealed partial class UiaTrayService : ITrayService
 {
     private const string ShellTrayClass = "Shell_TrayWnd";
     private const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
@@ -18,7 +12,8 @@ internal sealed partial class UiaTrayService : IDisposable
     private readonly Timer _debounce;
     private readonly Timer _watchdog;
     private AutomationElement? _taskbar;
-    private IReadOnlyList<TrayEntry> _entries = [];
+    private IReadOnlyList<TrayEntry> _visibleEntries = [];
+    private IReadOnlyList<TrayEntry> _overflowEntries = [];
     private bool _disposed;
 
     public UiaTrayService()
@@ -30,13 +25,24 @@ internal sealed partial class UiaTrayService : IDisposable
 
     public event EventHandler? Changed;
 
-    public IReadOnlyList<TrayEntry> Snapshot
+    public IReadOnlyList<TrayEntry> VisibleSnapshot
     {
         get
         {
             lock (_gate)
             {
-                return _entries.ToArray();
+                return _visibleEntries.ToArray();
+            }
+        }
+    }
+
+    public IReadOnlyList<TrayEntry> OverflowSnapshot
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _overflowEntries.ToArray();
             }
         }
     }
@@ -46,23 +52,31 @@ internal sealed partial class UiaTrayService : IDisposable
         TrayEntry? entry;
         lock (_gate)
         {
-            entry = _entries.FirstOrDefault(candidate => string.Equals(candidate.Key, key, StringComparison.Ordinal));
+            entry = _visibleEntries.Concat(_overflowEntries)
+                .FirstOrDefault(candidate => string.Equals(candidate.Key, key, StringComparison.Ordinal));
         }
 
-        if (entry is null) return false;
-        return TryInvokeElement(entry.Element);
+        return entry?.Element is { } element && TryInvokeElement(element);
     }
 
     public bool TryShowHiddenIcons()
     {
         var taskbar = FindTaskbar();
-        if (taskbar is null) return false;
+        if (taskbar is null)
+        {
+            return false;
+        }
+
         try
         {
             var chevron = taskbar.FindFirst(
                 TreeScope.Descendants,
                 new PropertyCondition(AutomationElement.NameProperty, ShowHiddenName));
-            if (chevron is null || !TryInvokeElement(chevron)) return false;
+            if (chevron is null || !TryInvokeElement(chevron))
+            {
+                return false;
+            }
+
             _ = Task.Run(async () =>
             {
                 await Task.Delay(350).ConfigureAwait(false);
@@ -78,7 +92,11 @@ internal sealed partial class UiaTrayService : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
         DetachTaskbarHandlers();
         _debounce.Dispose();
@@ -92,13 +110,21 @@ internal sealed partial class UiaTrayService : IDisposable
 
     private void ScheduleRefresh()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _ = _debounce.Change(TimeSpan.FromMilliseconds(200), Timeout.InfiniteTimeSpan);
     }
 
     private void RefreshAndRebind()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         try
         {
             var taskbar = FindTaskbar();
@@ -109,19 +135,15 @@ internal sealed partial class UiaTrayService : IDisposable
                 AttachTaskbarHandlers();
             }
 
-            var next = Enumerate(taskbar);
+            var nextVisible = EnumerateVisible(taskbar);
+            var nextOverflow = EnumerateOverflow();
             var changed = false;
             lock (_gate)
             {
-                if (!Equivalent(_entries, next))
-                {
-                    _entries = next;
-                    changed = true;
-                }
-                else
-                {
-                    _entries = next;
-                }
+                changed = !Equivalent(_visibleEntries, nextVisible)
+                    || !Equivalent(_overflowEntries, nextOverflow);
+                _visibleEntries = nextVisible;
+                _overflowEntries = nextOverflow;
             }
 
             if (changed)
@@ -136,7 +158,11 @@ internal sealed partial class UiaTrayService : IDisposable
 
     private void AttachTaskbarHandlers()
     {
-        if (_taskbar is null) return;
+        if (_taskbar is null)
+        {
+            return;
+        }
+
         try
         {
             Automation.AddStructureChangedEventHandler(
@@ -158,7 +184,11 @@ internal sealed partial class UiaTrayService : IDisposable
 
     private void DetachTaskbarHandlers()
     {
-        if (_taskbar is null) return;
+        if (_taskbar is null)
+        {
+            return;
+        }
+
         try
         {
             Automation.RemoveStructureChangedEventHandler(_taskbar, OnStructureChanged);
@@ -167,10 +197,11 @@ internal sealed partial class UiaTrayService : IDisposable
         catch
         {
         }
+
         _taskbar = null;
     }
 
-    private static IReadOnlyList<TrayEntry> Enumerate(AutomationElement? taskbar)
+    private static IReadOnlyList<TrayEntry> EnumerateVisible(AutomationElement? taskbar)
     {
         var result = new List<TrayEntry>();
         if (taskbar is not null)
@@ -178,6 +209,12 @@ internal sealed partial class UiaTrayService : IDisposable
             Collect(taskbar, isVisible: true, result);
         }
 
+        return Normalize(result);
+    }
+
+    private static IReadOnlyList<TrayEntry> EnumerateOverflow()
+    {
+        var result = new List<TrayEntry>();
         try
         {
             var overflow = AutomationElement.RootElement.FindFirst(
@@ -192,13 +229,15 @@ internal sealed partial class UiaTrayService : IDisposable
         {
         }
 
-        return result
+        return Normalize(result);
+    }
+
+    private static IReadOnlyList<TrayEntry> Normalize(IEnumerable<TrayEntry> entries)
+        => entries
             .GroupBy(entry => entry.Key, StringComparer.Ordinal)
             .Select(group => group.First())
-            .OrderBy(entry => entry.IsVisible ? 0 : 1)
-            .ThenBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-    }
 
     private static void Collect(AutomationElement root, bool isVisible, List<TrayEntry> result)
     {
@@ -209,8 +248,10 @@ internal sealed partial class UiaTrayService : IDisposable
                 new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
             foreach (AutomationElement button in buttons)
             {
-                if (!TryDescribe(button, isVisible, out var entry)) continue;
-                result.Add(entry);
+                if (TryDescribe(button, isVisible, out var entry))
+                {
+                    result.Add(entry);
+                }
             }
         }
         catch
@@ -224,20 +265,39 @@ internal sealed partial class UiaTrayService : IDisposable
         try
         {
             var className = element.Current.ClassName ?? string.Empty;
-            if (!className.StartsWith("SystemTray.", StringComparison.Ordinal)) return false;
-            if (!string.Equals(element.Current.AutomationId, "NotifyItemIcon", StringComparison.Ordinal)) return false;
+            if (!className.StartsWith("SystemTray.", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!string.Equals(element.Current.AutomationId, "NotifyItemIcon", StringComparison.Ordinal))
+            {
+                return false;
+            }
 
             var label = (element.Current.Name ?? string.Empty).Trim();
-            if (string.Equals(label, ShowHiddenName, StringComparison.OrdinalIgnoreCase)) return false;
+            if (string.Equals(label, ShowHiddenName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             var newline = label.IndexOfAny(['\r', '\n']);
-            if (newline >= 0) label = label[..newline].Trim();
-            if (string.IsNullOrWhiteSpace(label)) return false;
+            if (newline >= 0)
+            {
+                label = label[..newline].Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                return false;
+            }
 
             var runtimeId = element.GetRuntimeId();
             var key = runtimeId is { Length: > 0 }
                 ? "uia-" + string.Join('-', runtimeId.Select(value => value.ToString("X8", System.Globalization.CultureInfo.InvariantCulture)))
                 : $"uia-name-{label}";
-            entry = new TrayEntry(key, label, isVisible, element);
+            var iconPath = TrayIconCapture.TryCaptureToFile(element, key);
+            entry = new TrayEntry(key, label, isVisible, element, iconPath);
             return true;
         }
         catch
@@ -274,12 +334,17 @@ internal sealed partial class UiaTrayService : IDisposable
         catch
         {
         }
+
         return false;
     }
 
     private static bool SameElement(AutomationElement? left, AutomationElement? right)
     {
-        if (left is null || right is null) return left is null && right is null;
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+
         try
         {
             return left.GetRuntimeId().AsSpan().SequenceEqual(right.GetRuntimeId());
@@ -292,16 +357,22 @@ internal sealed partial class UiaTrayService : IDisposable
 
     private static bool Equivalent(IReadOnlyList<TrayEntry> left, IReadOnlyList<TrayEntry> right)
     {
-        if (left.Count != right.Count) return false;
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
         for (var index = 0; index < left.Count; index++)
         {
             if (!string.Equals(left[index].Key, right[index].Key, StringComparison.Ordinal)
                 || !string.Equals(left[index].DisplayName, right[index].DisplayName, StringComparison.Ordinal)
+                || !string.Equals(left[index].IconPath, right[index].IconPath, StringComparison.Ordinal)
                 || left[index].IsVisible != right[index].IsVisible)
             {
                 return false;
             }
         }
+
         return true;
     }
 }
