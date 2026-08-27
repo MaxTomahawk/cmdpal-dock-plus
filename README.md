@@ -7,20 +7,24 @@ It provides:
 - Smart app/window tiles that launch, focus, group, split, hide, and manage top-level windows.
 - Dynamic icon/title/subtitle templates driven by live app/window/process/provider data.
 - Grouped, Separate, and Smart per-window modes.
+- Event-driven live window updates for titles, create/close, foreground, minimize, and restore changes.
 - App-specific adapters for VS Code, browsers, Windows Terminal, Explorer, and Windows media sessions.
 - Smart rules and custom actions configured per shortcut/profile.
 - A Smart App Menu with windows, Recent/Frequent destinations, media actions, app actions, and user actions.
 - A System band for volume, network, and battery/power.
 - A safe Windows 11 notification-area band using UI Automation without injecting code into Explorer.
+- Visible tray icons captured from the actual taskbar UI when possible, with a safe glyph fallback.
 - Optional live DWM hover previews through a small version-pinned PowerToys compatibility patch.
 
 ## Status
 
 The `v0.1.x` line targets Windows 11 and PowerToys **0.101.0 or newer**.
 
-`v0.1.1` changes the default unsigned-package installer to `Install-Unsigned.cmd` so installation still works on machines where Group Policy requires PowerShell script files to be signed. The actual package-install command is unchanged: `Add-AppxPackage -AllowUnsigned`.
+`v0.1.1` changed the default unsigned-package installer to `Install-Unsigned.cmd` so installation still works on machines where Group Policy requires PowerShell script files to be signed.
 
-`v0.1.2` fixes Windows deployment error `0x80073D2C` (`ERROR_UNSIGNED_PACKAGE_INVALID_PUBLISHER_NAMESPACE`) by using the Windows-defined unsigned-package publisher OID required by `Add-AppxPackage -AllowUnsigned`. Do not use the v0.1.1 package for unsigned installation; use v0.1.2 or newer.
+`v0.1.2` fixed Windows deployment error `0x80073D2C` (`ERROR_UNSIGNED_PACKAGE_INVALID_PUBLISHER_NAMESPACE`) by using the Windows-defined unsigned-package publisher namespace required by `Add-AppxPackage -AllowUnsigned`.
+
+`v0.1.4` fixes the live window-update path, separates visible tray entries from Windows overflow entries, adds safe tray-icon pixel capture with caching/fallback, and makes grouped multi-window tiles discoverable in stock Command Palette through an explicit `Windows (N)…` entry.
 
 The core extension does **not** require a custom PowerToys build. The optional PowerToys patch is required only for automatic hover thumbnails because the public Command Palette extension SDK does not expose Dock pointer/hover events to extensions.
 
@@ -50,7 +54,7 @@ A release contains:
 Download these two files into the same folder:
 
 ```text
-CmdPalDockPlus-<version>.msixbundle
+CmdPalDockPlus-0.1.4.msixbundle
 Install-Unsigned.cmd
 ```
 
@@ -76,7 +80,7 @@ The CMD bootstrapper deliberately does **not** execute an unsigned `.ps1` file, 
 You can also provide an explicit package path:
 
 ```cmd
-Install-Unsigned.cmd "C:\path\to\CmdPalDockPlus-0.1.2.msixbundle"
+Install-Unsigned.cmd "C:\path\to\CmdPalDockPlus-0.1.4.msixbundle"
 ```
 
 ### Direct installation without either installer file
@@ -84,13 +88,13 @@ Install-Unsigned.cmd "C:\path\to\CmdPalDockPlus-0.1.2.msixbundle"
 Open an **Administrator** Windows PowerShell window in the folder containing the bundle and run:
 
 ```powershell
-Add-AppxPackage -Path .\CmdPalDockPlus-0.1.2.msixbundle -AllowUnsigned
+Add-AppxPackage -Path .\CmdPalDockPlus-0.1.4.msixbundle -AllowUnsigned
 ```
 
 Or from PowerShell 7, request an elevated Windows PowerShell process without executing a script file:
 
 ```powershell
-$pkg = (Resolve-Path .\CmdPalDockPlus-0.1.2.msixbundle).Path
+$pkg = (Resolve-Path .\CmdPalDockPlus-0.1.4.msixbundle).Path
 Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList "-NoProfile -Command `"Add-AppxPackage -Path '$pkg' -AllowUnsigned`""
 ```
 
@@ -128,7 +132,7 @@ The package deployment failed because its publisher is not in the unsigned names
 0x80073D2C / ERROR_UNSIGNED_PACKAGE_INVALID_PUBLISHER_NAMESPACE
 ```
 
-use **v0.1.2 or newer**. v0.1.1 used an incorrect publisher OID in the MSIX identity. Do not work around this by disabling Windows security policy or installing a made-up certificate; replace the old bundle with a current release. CI and the Release workflow now inspect the `AppxManifest.xml` inside every newly built x64/ARM64 MSIX and reject packages that do not use the Windows-defined unsigned publisher namespace.
+use **v0.1.2 or newer**. v0.1.1 used an incorrect publisher OID in the MSIX identity. Do not work around this by disabling Windows security policy or installing a made-up certificate; replace the old bundle with a current release. CI and the Release workflow inspect `AppxManifest.xml` inside every built x64/ARM64 MSIX and reject packages that do not use the Windows-defined unsigned publisher namespace.
 
 ### Unsigned development channel
 
@@ -186,7 +190,7 @@ Primary click behavior:
 
 The context menu can expose:
 
-- Smart App Menu;
+- `App actions`, `Window`, or `Windows (N)…` depending on the current window count;
 - Focus a specific window;
 - Minimize / maximize / close a specific window;
 - New instance;
@@ -194,6 +198,12 @@ The context menu can expose:
 - Close all windows;
 - live provider actions such as media Play/Pause/Previous/Next;
 - user-defined actions.
+
+## Live window tracking
+
+CmdPal Dock Plus uses Win32 accessibility/window events rather than a permanent desktop polling loop.
+
+The WinEvent hooks are registered on a dedicated thread that owns a Windows message queue and runs a normal `GetMessage` / `DispatchMessage` pump. Relevant events are coalesced before reconciliation, so changing a title, opening or closing a window, switching foreground windows, minimizing, or restoring causes the Smart Applications model to refresh without continuously scanning the desktop.
 
 ## Window matching
 
@@ -211,11 +221,11 @@ AUMID is also used by the public Windows Recent/Frequent destination APIs in the
 
 ### Grouped
 
-All matching windows become one tile. The primary/MRU window is focused by default; every represented window remains available in the menu.
+All matching windows become one tile. The primary/MRU window is focused by default. With multiple represented windows, stock Command Palette exposes an explicit `Windows (N)…` entry so the individual windows remain discoverable even without the optional PowerToys hover patch.
 
 ### Separate
 
-Each eligible top-level window becomes its own Dock tile and can show its own title, subtitle, icon, provider state, and actions.
+Each eligible top-level window becomes its own Dock tile with a stable HWND-based identity and can show its own title, subtitle, icon, provider state, and actions.
 
 ### Smart
 
@@ -436,15 +446,17 @@ If Core Audio initialization fails, only the volume item is omitted.
 
 ## Notification area / system tray
 
-The safe v0.1 implementation uses Windows UI Automation on Windows 11 and deliberately does **not** inject a DLL into `explorer.exe`.
+The safe implementation uses Windows UI Automation on Windows 11 and deliberately does **not** inject a DLL into `explorer.exe`.
 
 Behavior:
 
 - visible third-party notification icons are enumerated from the Windows taskbar accessibility tree;
 - default activation uses UIA `InvokePattern` when available;
-- **Hidden icons…** invokes Windows' own overflow control;
-- while Windows' overflow panel is open, its third-party icons can be reflected into the Dock band;
-- shell-owned combined volume/network/battery indicators are excluded because CmdPal Dock Plus provides them through the System band.
+- `Hidden icons…` invokes Windows' own overflow control;
+- overflow/hidden entries are tracked separately and are never appended to the visible Dock band;
+- shell-owned combined volume/network/battery indicators are excluded because CmdPal Dock Plus provides them through the System band;
+- visible icon pixels are captured from the UIA element's screen rectangle into a local PNG cache when possible;
+- the generic tray glyph is used only when safe capture is unavailable or fails.
 
 Performance model:
 
@@ -455,10 +467,10 @@ Performance model:
 
 Safe-build limitations:
 
-- UIA does not reliably expose original notification icon pixels, so v0.1 uses a generic tray glyph instead of scraping Explorer internals;
+- opening a real third-party tray item may still cause that application's popup to appear next to the real Windows notification area, because CmdPal Dock Plus activates the real Explorer/UIA element rather than proxying or injecting into it;
 - no synthetic cursor movement;
 - no right/middle-click emulation;
-- hidden/overflow icons are discoverable while Windows' overflow flyout is open.
+- hidden icons remain in Windows' own overflow UI instead of being cloned into the visible Dock band.
 
 ## Live hover previews
 
@@ -480,7 +492,7 @@ CI and release workflows validate the patch with `git apply --check` against the
 
 See [`powertoys/README.md`](powertoys/README.md) for apply/build instructions.
 
-Without the patch, all normal app/window tiles, context menus, status controls, tray UIA behavior, templates, rules, and actions continue working; only automatic hover previews are absent.
+Without the patch, all normal app/window tiles, `Windows (N)…` grouped selection, context menus, status controls, tray UIA behavior, templates, rules, and actions continue working; only automatic hover previews are absent.
 
 ## Native taskbar progress, overlay badges, and attention flashing
 
@@ -509,6 +521,7 @@ Run tests:
 dotnet test tests/CmdPalDockPlus.Core.Tests/CmdPalDockPlus.Core.Tests.csproj -c Release
 dotnet test tests/CmdPalDockPlus.Windows.Tests/CmdPalDockPlus.Windows.Tests.csproj -c Release
 dotnet test tests/CmdPalDockPlus.Providers.Tests/CmdPalDockPlus.Providers.Tests.csproj -c Release
+dotnet test tests/CmdPalDockPlus.Extension.Tests/CmdPalDockPlus.Extension.Tests.csproj -c Release -p:Platform=x64
 ```
 
 Validate the installer bootstrap without installing anything:
@@ -535,13 +548,14 @@ The workflow:
 1. validates/parses the tag;
 2. sets the MSIX version to `X.Y.Z.0`;
 3. validates `Install-Unsigned.cmd --help`;
-4. runs all managed tests;
+4. runs Core, Windows, Providers, and Extension regression tests;
 5. validates the optional PowerToys patch against the pinned upstream revision;
 6. builds unsigned x64 and ARM64 MSIX packages;
-7. creates the `.msixbundle`;
-8. includes both installer bootstraps and the PowerToys patch package;
-9. generates and verifies SHA-256 checksums;
-10. creates the GitHub Release.
+7. validates the unsigned namespace, Command Palette package contract, and x64 COM-server startup;
+8. creates the `.msixbundle`;
+9. includes both installer bootstraps and the PowerToys patch package;
+10. generates and verifies SHA-256 checksums;
+11. creates the GitHub Release.
 
 No signing secret is required for this unsigned development channel.
 
@@ -550,6 +564,9 @@ No signing secret is required for this unsigned development channel.
 - No DLL injection into Explorer for tray capture.
 - No generic injection into third-party apps for taskbar progress/overlay capture.
 - No synthetic cursor movement for tray context menus.
+- WinEvent hooks run on a dedicated message-pump thread and are coalesced before model reconciliation.
+- Tray overflow entries are modeled separately from the visible band.
+- Tray pixel capture is limited to the visible UIA element rectangle and falls back safely.
 - Regex execution has a timeout.
 - Custom actions are explicit profile configuration and validated before execution.
 - System status components fail independently where possible.
