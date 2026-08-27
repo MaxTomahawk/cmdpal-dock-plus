@@ -9,4 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CmdPalDockPlus.Core\CmdPalDockPlus.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CmdPalDockPlus.Windows.Tests" />
+  </ItemGroup>
 </Project>

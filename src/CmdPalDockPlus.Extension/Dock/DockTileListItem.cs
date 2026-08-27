@@ -19,6 +19,13 @@ internal sealed partial class DockTileListItem : ListItem
 
     public TileIdentity Identity => _state.Identity;
 
+    internal static string WindowChooserTitle(int windowCount) => windowCount switch
+    {
+        <= 0 => "App actions",
+        1 => "Window",
+        _ => $"Windows ({windowCount})…",
+    };
+
     public void Update(DockTileState state)
     {
         _state = state;
@@ -34,7 +41,7 @@ internal sealed partial class DockTileListItem : ListItem
         {
             new CommandContextItem(new SmartAppMenuPage(_coordinator, Identity))
             {
-                Title = "Smart App Menu",
+                Title = WindowChooserTitle(_state.Windows.Count),
             },
             new Separator(),
         };

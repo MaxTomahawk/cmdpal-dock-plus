@@ -5,11 +5,17 @@ namespace CmdPalDockPlus.Extension.Tray;
 
 internal sealed partial class TrayBandController : IDisposable
 {
-    private readonly UiaTrayService _service = new();
+    private readonly ITrayService _service;
     private bool _disposed;
 
     public TrayBandController()
+        : this(new UiaTrayService())
     {
+    }
+
+    internal TrayBandController(ITrayService service)
+    {
+        _service = service;
         Band = new WrappedDockItem([], "com.maxtomahawk.cmdpal.dockplus.tray", "Notification area")
         {
             Icon = new IconInfo("\uE7F4"),
@@ -22,7 +28,11 @@ internal sealed partial class TrayBandController : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
         _service.Changed -= OnChanged;
         _service.Dispose();
@@ -34,7 +44,7 @@ internal sealed partial class TrayBandController : IDisposable
     private void Rebuild()
     {
         var items = new List<IListItem>();
-        foreach (var entry in _service.Snapshot)
+        foreach (var entry in _service.VisibleSnapshot)
         {
             var key = entry.Key;
             var command = new AnonymousCommand(() => _ = _service.TryInvoke(key))
@@ -46,8 +56,8 @@ internal sealed partial class TrayBandController : IDisposable
             items.Add(new ListItem(command)
             {
                 Title = entry.DisplayName,
-                Subtitle = entry.IsVisible ? "Tray" : "Tray · overflow",
-                Icon = new IconInfo("\uE7F4"),
+                Subtitle = "Tray",
+                Icon = new IconInfo(string.IsNullOrWhiteSpace(entry.IconPath) ? "\uE7F4" : entry.IconPath),
             });
         }
 

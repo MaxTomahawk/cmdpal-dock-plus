@@ -34,6 +34,9 @@ jobs:
       - name: Test Providers
         shell: pwsh
         run: dotnet test tests/CmdPalDockPlus.Providers.Tests/CmdPalDockPlus.Providers.Tests.csproj -c Release
+      - name: Test Extension
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Extension.Tests/CmdPalDockPlus.Extension.Tests.csproj -c Release -p:Platform=x64
 
       - name: Verify PowerToys hover patch
         shell: pwsh
@@ -120,13 +123,15 @@ jobs:
 
           Requires PowerToys 0.101.0 or newer on Windows 11.
 
-          The extension packages are built with the architecture-specific self-contained publish profiles from the official PowerToys Command Palette extension template. Release CI opens every built MSIX and validates the `com.microsoft.commandpalette` AppExtension registration, matching COM CLSID/executable mapping, self-contained .NET host/runtime payload, and Windows unsigned publisher namespace before bundling or publishing. The x64 package must also start its COM server successfully before release publication.
+          This release fixes live Smart Applications updates by running WinEvent hooks on a dedicated Windows message-pump thread, keeps hidden notification-area entries out of the visible Dock band, captures visible tray icon pixels through a safe UI Automation/screen-capture path with a glyph fallback, and makes grouped multi-window tiles discoverable in stock Command Palette through an explicit `Windows (N)…` entry.
+
+          The extension packages are built with the architecture-specific self-contained publish profiles from the official PowerToys Command Palette extension template. Release CI runs Core, Windows, Providers, and Extension regression tests, opens every built MSIX and validates the `com.microsoft.commandpalette` AppExtension registration, matching COM CLSID/executable mapping, self-contained .NET host/runtime payload, and Windows unsigned publisher namespace before bundling or publishing. The x64 package must also start its COM server successfully before release publication.
 
           Download the `.msixbundle` and `Install-Unsigned.cmd` into the same folder, then run the CMD installer. Windows will request administrator elevation. The package is installed through `Add-AppxPackage -AllowUnsigned`.
 
           `Install-Unsigned.ps1` remains attached as a compatibility fallback for machines whose PowerShell policy permits local unsigned scripts.
 
-          Live DWM hover previews require the optional PowerToys compatibility patch in the attached patch ZIP. All core app/window tiles work without that patch.
+          Live DWM hover previews require the optional PowerToys compatibility patch in the attached patch ZIP. All core app/window tiles and the stock `Windows (N)…` chooser work without that patch.
 
           The safe notification-area implementation uses Windows UI Automation and does not inject code into Explorer. Generic third-party taskbar progress/overlay interception is not shipped in this release.
           "@

@@ -29,6 +29,9 @@ jobs:
       - name: Test Providers
         shell: pwsh
         run: dotnet test tests/CmdPalDockPlus.Providers.Tests/CmdPalDockPlus.Providers.Tests.csproj -c Release
+      - name: Test Extension
+        shell: pwsh
+        run: dotnet test tests/CmdPalDockPlus.Extension.Tests/CmdPalDockPlus.Extension.Tests.csproj -c Release -p:Platform=x64
 
   extension-build:
     runs-on: windows-2025
