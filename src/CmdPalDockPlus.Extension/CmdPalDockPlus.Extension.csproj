@@ -38,6 +38,9 @@
     <ProjectReference Include="..\CmdPalDockPlus.Windows\CmdPalDockPlus.Windows.csproj" />
     <ProjectReference Include="..\CmdPalDockPlus.Providers\CmdPalDockPlus.Providers.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CmdPalDockPlus.Extension.Tests" />
+  </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
     <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
